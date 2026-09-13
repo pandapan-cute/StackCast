@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">StackCast</string>
+
+    <!-- ダッシュボード画面 -->
+    <string name="dashboard_title">ダッシュボード</string>
+    <string name="dashboard_start_stream">配信開始</string>
+    <string name="dashboard_settings">設定</string>
+
+    <!-- 設定画面 -->
+    <string name="settings_title">設定</string>
+    <string name="settings_back">戻る</string>
+
+    <!-- 配信中画面 -->
+    <string name="streaming_title">配信中</string>
+    <string name="streaming_stop">配信終了</string>
+
+    <!-- 配信結果サマリー画面 -->
+    <string name="summary_title">配信結果サマリー</string>
+    <string name="summary_back_to_dashboard">ダッシュボードへ戻る</string>
+</resources>

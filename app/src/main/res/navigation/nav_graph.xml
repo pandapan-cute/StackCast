@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- StackCast アプリの画面遷移グラフ。ダッシュボードを起点に設定 / 配信 / サマリー画面へ遷移する。 -->
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/dashboardFragment">
+
+    <fragment
+        android:id="@+id/dashboardFragment"
+        android:name="com.pandapan.stackcast.presentation.dashboard.DashboardFragment"
+        android:label="@string/dashboard_title"
+        tools:layout="@layout/fragment_dashboard">
+        <action
+            android:id="@+id/action_dashboard_to_settings"
+            app:destination="@id/settingsFragment" />
+        <action
+            android:id="@+id/action_dashboard_to_streaming"
+            app:destination="@id/streamingFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.pandapan.stackcast.presentation.settings.SettingsFragment"
+        android:label="@string/settings_title"
+        tools:layout="@layout/fragment_settings" />
+
+    <fragment
+        android:id="@+id/streamingFragment"
+        android:name="com.pandapan.stackcast.presentation.streaming.StreamingFragment"
+        android:label="@string/streaming_title"
+        tools:layout="@layout/fragment_streaming">
+        <action
+            android:id="@+id/action_streaming_to_summary"
+            app:destination="@id/summaryFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/summaryFragment"
+        android:name="com.pandapan.stackcast.presentation.summary.SummaryFragment"
+        android:label="@string/summary_title"
+        tools:layout="@layout/fragment_summary">
+        <action
+            android:id="@+id/action_summary_to_dashboard"
+            app:destination="@id/dashboardFragment"
+            app:popUpTo="@id/dashboardFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+</navigation>
