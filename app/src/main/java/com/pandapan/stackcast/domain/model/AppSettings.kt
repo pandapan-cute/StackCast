@@ -9,9 +9,11 @@ package com.pandapan.stackcast.domain.model
  * @property rtmpConfig 配信 (RTMP) 設定。
  * @property personaPrompt AIキャラクターのペルソナ設定。
  * @property bleConfig ｽﾀｯｸﾁｬﾝ BLE 接続設定。
+ * @property llmModelConfig オンデバイスLLMモデルファイルのダウンロード設定。
  */
 data class AppSettings(
     val rtmpConfig: RtmpConfig = RtmpConfig(),
     val personaPrompt: PersonaPrompt = PersonaPrompt(),
-    val bleConfig: BleConfig = BleConfig()
+    val bleConfig: BleConfig = BleConfig(),
+    val llmModelConfig: LlmModelConfig = LlmModelConfig()
 )

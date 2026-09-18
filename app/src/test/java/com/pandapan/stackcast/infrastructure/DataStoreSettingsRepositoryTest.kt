@@ -3,6 +3,7 @@ package com.pandapan.stackcast.infrastructure
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.pandapan.stackcast.domain.model.AppSettings
 import com.pandapan.stackcast.domain.model.BleConfig
+import com.pandapan.stackcast.domain.model.LlmModelConfig
 import com.pandapan.stackcast.domain.model.PersonaPrompt
 import com.pandapan.stackcast.domain.model.RtmpConfig
 import java.io.File
@@ -77,6 +78,10 @@ class DataStoreSettingsRepositoryTest {
                 deviceAddress = "AA:BB:CC:DD:EE:FF",
                 deviceName = "StackChan-01",
                 autoReconnect = false
+            ),
+            llmModelConfig = LlmModelConfig(
+                modelUrl = "https://huggingface.co/example/model.task",
+                huggingFaceAccessToken = "hf_dummy_token"
             )
         )
 

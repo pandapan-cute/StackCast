@@ -26,6 +26,14 @@
     <string name="settings_hint_ble_name">ｽﾀｯｸﾁｬﾝ デバイス名</string>
     <string name="settings_switch_ble_auto_reconnect">切断時に自動再接続する</string>
     <string name="settings_save_success">設定を保存しました</string>
+    <string name="settings_section_llm_model">LLMモデルダウンロード</string>
+    <string name="settings_hint_llm_model_url">モデルファイルURL</string>
+    <string name="settings_hint_llm_hf_token">HuggingFace アクセストークン</string>
+    <string name="settings_download_model">モデルをダウンロード</string>
+    <string name="settings_download_status_idle">未ダウンロード</string>
+    <string name="settings_download_status_in_progress">ダウンロード中… %1$d%% (%2$s / %3$s)</string>
+    <string name="settings_download_status_completed">ダウンロード完了: %1$s</string>
+    <string name="settings_download_status_failed">ダウンロード失敗: %1$s</string>
 
     <!-- 配信中画面 -->
     <string name="streaming_title">配信中</string>

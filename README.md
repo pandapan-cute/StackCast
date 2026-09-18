@@ -84,11 +84,26 @@ flowchart TD
 1. 本リポジトリをクローンし、Android Studioでビルド・実機インストールします。
 2. アプリを起動し、必要な権限（カメラ、マイク、Bluetooth、バッテリー最適化除外）を許可します。
 3. **設定画面**を開き、以下を入力します:
+    - **LLMモデルファイルURL・HuggingFaceアクセストークン**: 詳細は「ローカルLLM設定」項目で後述
     - **RTMP URL & ストリームキー**: YouTube Studioから取得した配信キー
     - **配信URL**: コメント取得対象のYouTube Live URLまたは動画ID
     - **AIプロンプト設定**: ｽﾀｯｸﾁｬﾝのキャラクター設定（ペルソナ）
 4. 「ｽﾀｯｸﾁｬﾝに接続」をタップし、BLEデバイス一覧から該当のｽﾀｯｸﾁｬﾝを選択。
 5. 「配信開始」ボタンを押すと、ストリーミングとコメント監視・自動返答がスタートします。
+
+#### ローカルLLM設定
+
+ローカルLLMを利用する場合、以下の設定が必要です:
+
+- **LLMモデルファイルURL**: HuggingFaceなどから取得したモデルファイルのURLを指定します。
+  1. [Gemma3-1B-IT モデルページ](https://huggingface.co/litert-community/Gemma3-1B-IT)にアクセスしてライセンスに同意します。
+  2. アプリのモデルファイルURL欄に以下を入力します:
+     `https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.task?download=true`
+- **HuggingFaceアクセストークン**: HuggingFaceアカウントで取得したアクセストークンを指定します。（アカウント登録が必要です）
+  1. HuggingFaceのウェブサイトにログインし、[アクセストークンページ](https://huggingface.co/settings/tokens/new?tokenType=read)から新しいトークンを作成します。
+  2. 作成したトークンをアプリのHuggingFaceアクセストークン欄に入力します。
+
+上記を対応後、アプリ内の`モデルをダウンロード`ボタンをタップしてモデルを取得します。
 
 ---
 

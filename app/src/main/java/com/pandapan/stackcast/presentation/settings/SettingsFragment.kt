@@ -16,9 +16,12 @@ import com.pandapan.stackcast.R
 import com.pandapan.stackcast.databinding.FragmentSettingsBinding
 import com.pandapan.stackcast.domain.model.AppSettings
 import com.pandapan.stackcast.domain.model.BleConfig
+import com.pandapan.stackcast.domain.model.LlmModelConfig
+import com.pandapan.stackcast.domain.model.ModelDownloadState
 import com.pandapan.stackcast.domain.model.PersonaPrompt
 import com.pandapan.stackcast.domain.model.RtmpConfig
 import com.google.android.material.textfield.TextInputEditText
+import java.util.Locale
 import kotlinx.coroutines.launch
 
 /**
@@ -52,6 +55,7 @@ class SettingsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         observeUiState()
+        observeDownloadState()
         setupButtons()
     }
 
@@ -68,6 +72,19 @@ class SettingsFragment : Fragment() {
         }
     }
 
+    /**
+     * [SettingsViewModel.downloadState] を監視し、LLMモデルのダウンロード進捗をUIへ反映する。
+     */
+    private fun observeDownloadState() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.downloadState.collect { state ->
+                    renderDownloadState(state)
+                }
+            }
+        }
+    }
+
     /** 保存ボタン・戻るボタン・システムバックの各操作を設定する。 */
     private fun setupButtons() {
         binding.btnSave.setOnClickListener {
@@ -77,6 +94,10 @@ class SettingsFragment : Fragment() {
                 getString(R.string.settings_save_success),
                 Toast.LENGTH_SHORT
             ).show()
+        }
+
+        binding.btnDownloadModel.setOnClickListener {
+            viewModel.downloadLlmModel(collectLlmModelConfig())
         }
 
         binding.btnBack.setOnClickListener {
@@ -93,6 +114,49 @@ class SettingsFragment : Fragment() {
                 }
             }
         )
+    }
+
+    /** ダウンロード進捗状態をプログレスバー・ステータステキストへ反映する。 */
+    private fun renderDownloadState(state: ModelDownloadState) {
+        with(binding) {
+            when (state) {
+                is ModelDownloadState.Idle -> {
+                    progressDownloadModel.progress = 0
+                    tvDownloadStatus.text = getString(R.string.settings_download_status_idle)
+                }
+
+                is ModelDownloadState.InProgress -> {
+                    progressDownloadModel.progress = state.progressPercent
+                    tvDownloadStatus.text = getString(
+                        R.string.settings_download_status_in_progress,
+                        state.progressPercent,
+                        formatBytes(state.downloadedBytes),
+                        if (state.totalBytes > 0) formatBytes(state.totalBytes) else "?"
+                    )
+                }
+
+                is ModelDownloadState.Completed -> {
+                    progressDownloadModel.progress = 100
+                    tvDownloadStatus.text = getString(
+                        R.string.settings_download_status_completed,
+                        state.filePath
+                    )
+                }
+
+                is ModelDownloadState.Failed -> {
+                    tvDownloadStatus.text = getString(
+                        R.string.settings_download_status_failed,
+                        state.message
+                    )
+                }
+            }
+        }
+    }
+
+    /** バイト数を "12.3MB" のような読みやすい表記へ変換する。 */
+    private fun formatBytes(bytes: Long): String {
+        val megaBytes = bytes / (1024.0 * 1024.0)
+        return String.format(Locale.getDefault(), "%.1fMB", megaBytes)
     }
 
     /** [AppSettings] の値を各フォーム入力欄へ反映する。 */
@@ -112,6 +176,9 @@ class SettingsFragment : Fragment() {
             etBleDeviceAddress.setTextIfChanged(settings.bleConfig.deviceAddress)
             etBleDeviceName.setTextIfChanged(settings.bleConfig.deviceName)
             switchBleAutoReconnect.isChecked = settings.bleConfig.autoReconnect
+
+            etLlmModelUrl.setTextIfChanged(settings.llmModelConfig.modelUrl)
+            etLlmHfToken.setTextIfChanged(settings.llmModelConfig.huggingFaceAccessToken)
         }
     }
 
@@ -158,7 +225,16 @@ class SettingsFragment : Fragment() {
         return AppSettings(
             rtmpConfig = rtmpConfig,
             personaPrompt = personaPrompt,
-            bleConfig = bleConfig
+            bleConfig = bleConfig,
+            llmModelConfig = collectLlmModelConfig()
+        )
+    }
+
+    /** LLMモデルダウンロード関連のフォーム入力値から [LlmModelConfig] を組み立てる。 */
+    private fun collectLlmModelConfig(): LlmModelConfig {
+        return LlmModelConfig(
+            modelUrl = binding.etLlmModelUrl.text?.toString().orEmpty(),
+            huggingFaceAccessToken = binding.etLlmHfToken.text?.toString().orEmpty()
         )
     }
 

@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.pandapan.stackcast.domain.model.AppSettings
 import com.pandapan.stackcast.domain.model.BleConfig
+import com.pandapan.stackcast.domain.model.LlmModelConfig
 import com.pandapan.stackcast.domain.model.PersonaPrompt
 import com.pandapan.stackcast.domain.model.RtmpConfig
 import com.pandapan.stackcast.domain.ports.SettingsRepositoryPort
@@ -61,6 +62,9 @@ class DataStoreSettingsRepository(
             preferences[KEY_BLE_DEVICE_ADDRESS] = settings.bleConfig.deviceAddress
             preferences[KEY_BLE_DEVICE_NAME] = settings.bleConfig.deviceName
             preferences[KEY_BLE_AUTO_RECONNECT] = settings.bleConfig.autoReconnect
+
+            preferences[KEY_LLM_MODEL_URL] = settings.llmModelConfig.modelUrl
+            preferences[KEY_LLM_HF_ACCESS_TOKEN] = settings.llmModelConfig.huggingFaceAccessToken
         }
     }
 
@@ -92,10 +96,16 @@ class DataStoreSettingsRepository(
             autoReconnect = this[KEY_BLE_AUTO_RECONNECT] ?: true
         )
 
+        val llmModelConfig = LlmModelConfig(
+            modelUrl = this[KEY_LLM_MODEL_URL] ?: "",
+            huggingFaceAccessToken = this[KEY_LLM_HF_ACCESS_TOKEN] ?: ""
+        )
+
         return AppSettings(
             rtmpConfig = rtmpConfig,
             personaPrompt = personaPrompt,
-            bleConfig = bleConfig
+            bleConfig = bleConfig,
+            llmModelConfig = llmModelConfig
         )
     }
 
@@ -117,5 +127,8 @@ class DataStoreSettingsRepository(
         val KEY_BLE_DEVICE_ADDRESS = stringPreferencesKey("ble_device_address")
         val KEY_BLE_DEVICE_NAME = stringPreferencesKey("ble_device_name")
         val KEY_BLE_AUTO_RECONNECT = booleanPreferencesKey("ble_auto_reconnect")
+
+        val KEY_LLM_MODEL_URL = stringPreferencesKey("llm_model_url")
+        val KEY_LLM_HF_ACCESS_TOKEN = stringPreferencesKey("llm_hf_access_token")
     }
 }
