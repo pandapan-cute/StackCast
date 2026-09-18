@@ -47,6 +47,7 @@ dependencies {
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.mediapipe.tasks.genai)
+    implementation(libs.rootencoder.library)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.espresso.core)

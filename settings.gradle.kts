@@ -19,6 +19,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // RootEncoder (RTMP配信エンジン) をJitPack経由で取得するために追加。
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

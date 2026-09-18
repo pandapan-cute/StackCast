@@ -38,6 +38,15 @@
     <!-- 配信中画面 -->
     <string name="streaming_title">配信中</string>
     <string name="streaming_stop">配信終了</string>
+    <string name="streaming_notification_channel_name">配信通知</string>
+    <string name="streaming_notification_title">StackCast 配信中</string>
+    <string name="streaming_notification_text">RTMP配信を実行しています</string>
+    <string name="streaming_permission_denied">カメラ・マイクの権限が許可されていないため配信できません</string>
+    <string name="streaming_status_idle">待機中</string>
+    <string name="streaming_status_starting">配信準備中…</string>
+    <string name="streaming_status_streaming">配信中 (%1$d kbps)</string>
+    <string name="streaming_status_stopping">配信終了処理中…</string>
+    <string name="streaming_status_error">エラー: %1$s</string>
 
     <!-- 配信結果サマリー画面 -->
     <string name="summary_title">配信結果サマリー</string>

@@ -1,19 +1,42 @@
 package com.pandapan.stackcast.presentation.streaming
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.IBinder
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import com.pandapan.stackcast.R
 import com.pandapan.stackcast.databinding.FragmentStreamingBinding
+import com.pandapan.stackcast.domain.model.StreamSession
+import com.pandapan.stackcast.domain.model.StreamingState
+import com.pandapan.stackcast.infrastructure.DataStoreSettingsRepository
+import com.pandapan.stackcast.infrastructure.service.StreamingForegroundService
+import com.pandapan.stackcast.infrastructure.settingsDataStore
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * 配信中画面。
  *
- * カメラプレビューと配信状態・音声・リップシンク・BLE通信・エラー通知のオーバーレイを表示する。
- * Phase 1 時点ではダミーUIのみを提供し、実際の RTMP / BLE / AI 連携は Phase 2 以降で実装する。
+ * カメラプレビュー ([com.pedro.library.view.OpenGlView]) の表示、配信状態のオーバーレイ表示、
+ * および [StreamingForegroundService] とのバインドを担当する。
+ * カメラ・マイクの権限が許可されている場合、画面表示と同時に自動的に配信を開始し、
+ * 「配信終了」ボタン押下、または画面破棄時にサービスとの結びつきを解除する
+ * （配信自体はフォアグラウンドサービスにより継続される）。
  */
 class StreamingFragment : Fragment() {
 
@@ -21,6 +44,37 @@ class StreamingFragment : Fragment() {
 
     /** onCreateView 〜 onDestroyView の間のみ有効な ViewBinding 参照。 */
     private val binding get() = _binding!!
+
+    private val viewModel: StreamingViewModel by viewModels()
+
+    private var streamingService: StreamingForegroundService? = null
+    private var isServiceBound = false
+
+    /** カメラ・マイクの実行時権限をまとめて要求するためのランチャー。 */
+    private val requestPermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        if (grants.values.all { it }) {
+            startServiceAndBind()
+        } else {
+            Toast.makeText(requireContext(), R.string.streaming_permission_denied, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as? StreamingForegroundService.LocalBinder ?: return
+            val boundService = binder.getService()
+            streamingService = boundService
+            viewModel.attachStreamer(boundService.rtmpStreamerPort)
+            _binding?.cameraPreviewView?.let { boundService.encoder.attachPreviewView(it) }
+            startStreamingIfNeeded()
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            streamingService = null
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -34,16 +88,97 @@ class StreamingFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        observeStreamingState()
+
         binding.btnStopStream.setOnClickListener {
-            // 配信終了ボタン: 配信結果サマリー画面へ遷移する。
-            // Phase 2 以降で配信終了確認ダイアログ (EndConfirm) を挟む予定。
+            viewModel.stopStreaming()
+            // 配信結果サマリー画面へ遷移する。実際の配信終了はサービス側で非同期に完了する。
             findNavController().navigate(R.id.action_streaming_to_summary)
         }
+
+        requestCameraAndMicPermissions()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // 画面がバックグラウンドへ回っても配信自体はサービス側で継続するため、
+        // プレビュー描画先のみ切り離してバックグラウンドレンダリングへ戻す。
+        streamingService?.encoder?.detachPreviewView()
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
+        if (isServiceBound) {
+            requireContext().unbindService(serviceConnection)
+            isServiceBound = false
+        }
         // メモリリーク防止のため、Fragment の View 破棄時に binding 参照を解放する。
         _binding = null
+    }
+
+    /** カメラ・マイクの実行時権限を要求する。既に許可済みであれば即座にサービスを起動する。 */
+    private fun requestCameraAndMicPermissions() {
+        val permissions = arrayOf(
+            android.Manifest.permission.CAMERA,
+            android.Manifest.permission.RECORD_AUDIO
+        )
+        val allGranted = permissions.all {
+            ContextCompat.checkSelfPermission(requireContext(), it) == PackageManager.PERMISSION_GRANTED
+        }
+        if (allGranted) {
+            startServiceAndBind()
+        } else {
+            requestPermissionsLauncher.launch(permissions)
+        }
+    }
+
+    /** [StreamingForegroundService] を起動し、バインドする。 */
+    private fun startServiceAndBind() {
+        val context = requireContext().applicationContext
+        StreamingForegroundService.start(context)
+        context.bindService(
+            Intent(context, StreamingForegroundService::class.java),
+            serviceConnection,
+            Context.BIND_AUTO_CREATE
+        )
+        isServiceBound = true
+    }
+
+    /** 設定画面で保存された配信設定を読み込み、まだ配信していなければ配信を開始する。 */
+    private fun startStreamingIfNeeded() {
+        if (viewModel.state.value != StreamingState.Idle) return
+        viewLifecycleOwner.lifecycleScope.launch {
+            val repository = DataStoreSettingsRepository(requireContext().applicationContext.settingsDataStore)
+            val settings = repository.observeSettings().first()
+            if (settings.rtmpConfig.isValid()) {
+                viewModel.startStreaming(StreamSession.fromRtmpConfig(settings.rtmpConfig))
+            } else {
+                Toast.makeText(
+                    requireContext(),
+                    getString(R.string.streaming_status_error, "配信設定が未入力です。設定画面を確認してください。"),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    /** [StreamingViewModel.state] を監視し、画面下部のステータス表示へ反映する。 */
+    private fun observeStreamingState() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.state.collect { state ->
+                    _binding?.tvStreamingStatus?.text = renderState(state)
+                }
+            }
+        }
+    }
+
+    /** [StreamingState] を画面表示用の文字列へ変換する。 */
+    private fun renderState(state: StreamingState): String = when (state) {
+        StreamingState.Idle -> getString(R.string.streaming_status_idle)
+        StreamingState.Starting -> getString(R.string.streaming_status_starting)
+        is StreamingState.Streaming -> getString(R.string.streaming_status_streaming, state.bitrateBps / 1000)
+        StreamingState.Stopping -> getString(R.string.streaming_status_stopping)
+        is StreamingState.Error -> getString(R.string.streaming_status_error, state.reason)
     }
 }
