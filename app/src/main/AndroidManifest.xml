@@ -5,6 +5,13 @@
     <!-- LLMモデルファイルのオンラインダウンロードに使用する。 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Android 11 (API 30) 以降のパッケージ可視性制限に対応し、TextToSpeechエンジンを検出可能にする。 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
