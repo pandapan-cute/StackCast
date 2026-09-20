@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
  * `RtmpEncoderEngine`、単体テストでは `MockRtmpEncoderEngine`）には依存せず、
  * [attachStreamer] で注入されたポートを介して配信の開始・停止・イベント購読を行う。
  *
- * 状態は [StreamingState.Idle] → [StreamingState.Starting] → [StreamingState.Streaming] →
+ * 状態は [StreamingState.Idle] → [StreamingState.Previewing] → [StreamingState.Starting] → [StreamingState.Streaming] →
  * [StreamingState.Stopping] → [StreamingState.Idle] の順に遷移する。
  * 配信中に予期せぬ切断が発生した場合は、指数バックオフによる簡易的な自動再接続を試みる。
  */
@@ -80,6 +80,21 @@ class StreamingViewModel : ViewModel() {
         }
     }
 
+    /** カメラプレビューだけを開始し、RTMP配信は開始しない。 */
+    fun startPreview() {
+        val port = rtmpStreamerPort
+        if (port == null) {
+            _state.value = StreamingState.Error("配信エンジンが初期化されていません。")
+            return
+        }
+        if (_state.value !is StreamingState.Idle) return
+        port.startPreview()
+            .onSuccess { _state.value = StreamingState.Previewing }
+            .onFailure { error ->
+                _state.value = StreamingState.Error(error.message ?: "プレビュー開始に失敗しました。")
+            }
+    }
+
     /**
      * 配信を開始する。既に開始処理中・配信中の場合は無視される。
      *
@@ -108,6 +123,14 @@ class StreamingViewModel : ViewModel() {
     /** 配信を終了する。ユーザー操作による明示的な終了のため、自動再接続は行わない。 */
     fun stopStreaming() {
         val port = rtmpStreamerPort ?: return
+        if (_state.value is StreamingState.Previewing) {
+            port.stopPreview()
+                .onSuccess { _state.value = StreamingState.Idle }
+                .onFailure { error ->
+                    _state.value = StreamingState.Error(error.message ?: "プレビュー停止に失敗しました。")
+                }
+            return
+        }
         reconnectJob?.cancel()
         lastSession = null
         reconnectAttempt = 0
@@ -233,7 +256,6 @@ class StreamingViewModel : ViewModel() {
         super.onCleared()
         eventsJob?.cancel()
         reconnectJob?.cancel()
-        pipelineJob?.cancel()
         pipelineJob?.cancel()
     }
 

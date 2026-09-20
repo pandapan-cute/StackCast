@@ -72,6 +72,18 @@ class StreamingIntegrationTest {
     }
 
     @Test
+    fun `startPreviewでは配信を開始せずPreviewingになる`() = runTest {
+        val viewModel = StreamingViewModel()
+        val engine = MockRtmpEncoderEngine(connectDelayMillis = 50L, logger = {})
+        viewModel.attachStreamer(engine)
+
+        viewModel.startPreview()
+
+        assertEquals(StreamingState.Previewing, viewModel.state.value)
+        assertTrue(!engine.isStreaming())
+    }
+
+    @Test
     fun `stopStreamingでStreamingからStopping経てIdleへ遷移する`() = runTest {
         val viewModel = StreamingViewModel()
         val engine = MockRtmpEncoderEngine(connectDelayMillis = 50L, logger = {})

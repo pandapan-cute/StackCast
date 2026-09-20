@@ -73,7 +73,7 @@ data class StreamSession(
         /**
          * 設定画面で永続化されている [RtmpConfig] から [StreamSession] を生成する。
          *
-         * [RtmpConfig.resolution] は `"1920x1080"` のような `"幅x高さ"` 形式の文字列のため、
+         * [RtmpConfig.resolution] は `"1280x720"` のような `"幅x高さ"` 形式の文字列のため、
          * パース失敗時は [DEFAULT_VIDEO_WIDTH] / [DEFAULT_VIDEO_HEIGHT] にフォールバックする。
          *
          * @param config 設定画面で保持している配信設定。

@@ -9,7 +9,7 @@ package com.pandapan.stackcast.domain.model
  *
  * @property rtmpUrl 配信先の RTMP サーバー URL (例: rtmp://a.rtmp.youtube.com/live2)。
  * @property streamKey 配信先が発行するストリームキー。
- * @property resolution 映像解像度 (例: "1920x1080")。
+ * @property resolution 映像解像度 (例: "1280x720")。
  * @property frameRate 映像フレームレート (fps)。
  * @property bitrateKbps 映像ビットレート (kbps)。
  */
@@ -33,8 +33,8 @@ data class RtmpConfig(
     }
 
     companion object {
-        /** 解像度の初期値 (フルHD)。 */
-        const val DEFAULT_RESOLUTION: String = "1920x1080"
+        /** 解像度の初期値 (16:9の720p。端末カメラとの互換性を優先)。 */
+        const val DEFAULT_RESOLUTION: String = "1280x720"
 
         /** フレームレートの初期値 (fps)。 */
         const val DEFAULT_FRAME_RATE: Int = 30

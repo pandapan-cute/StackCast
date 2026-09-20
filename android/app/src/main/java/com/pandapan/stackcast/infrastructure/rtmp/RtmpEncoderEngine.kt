@@ -80,6 +80,15 @@ class RtmpEncoderEngine(
 
     override fun startPreview(): Result<Unit> = runCatching {
         if (!rtmpCamera.isOnPreview) {
+            check(
+                rtmpCamera.prepareVideo(
+                    PREVIEW_WIDTH,
+                    PREVIEW_HEIGHT,
+                    PREVIEW_FPS,
+                    PREVIEW_BITRATE_BPS,
+                    VIDEO_ROTATION_DEGREES
+                )
+            ) { "プレビュー用カメラの初期化に失敗しました。" }
             rtmpCamera.startPreview()
         }
     }
@@ -154,5 +163,11 @@ class RtmpEncoderEngine(
 
         /** 映像の回転角。スマートフォンを横向きに構えて配信する運用を前提に0度（回転無し）とする。 */
         const val VIDEO_ROTATION_DEGREES = 0
+
+        /** プレビュー用の16:9推奨解像度。 */
+        const val PREVIEW_WIDTH = 1280
+        const val PREVIEW_HEIGHT = 720
+        const val PREVIEW_FPS = 30
+        const val PREVIEW_BITRATE_BPS = 2_500_000
     }
 }

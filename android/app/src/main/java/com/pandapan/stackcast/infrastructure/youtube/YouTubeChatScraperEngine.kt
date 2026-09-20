@@ -1,5 +1,6 @@
 package com.pandapan.stackcast.infrastructure.youtube
 
+import android.util.Log
 import com.pandapan.stackcast.domain.model.LiveComment
 import com.pandapan.stackcast.domain.ports.YouTubeChatPort
 import java.io.IOException
@@ -55,8 +56,14 @@ class YouTubeChatScraperEngine(
                         .post(body)
                         .build()
                     client.newCall(request).execute().use { response ->
-                        if (!response.isSuccessful) throw IOException("YouTubeチャット取得失敗: HTTP ${response.code}")
-                        return@withContext Result.success(parseResponse(response.body?.string().orEmpty()))
+                        val responseBody = response.body?.string().orEmpty()
+                        if (!response.isSuccessful) {
+                            throw IOException(
+                                "YouTubeチャット取得失敗: HTTP ${response.code}: " +
+                                    sanitizeErrorBody(responseBody)
+                            )
+                        }
+                        return@withContext Result.success(parseResponse(responseBody))
                     }
                 } catch (error: IOException) {
                     lastError = error
@@ -68,6 +75,20 @@ class YouTubeChatScraperEngine(
             }
             Result.failure(lastError ?: IOException("YouTubeチャット取得に失敗しました。"))
         }
+
+    /**
+     * HTTPエラー本文をログ・UI表示用に整形する。
+     *
+     * YouTubeのエラー本文にはリクエスト値が再掲される場合があるため、
+     * continuation等のトークンを除去してから記録する。
+     */
+    private fun sanitizeErrorBody(body: String): String {
+        return body
+            .replace(Regex("(?i)continuation\\s*[:=]\\s*\"[^\"]*\""), "continuation:\"[REDACTED]\"")
+            .replace(Regex("\\s+"), " ")
+            .take(MAX_ERROR_BODY_LENGTH)
+            .also { Log.e(LOG_TAG, it) }
+    }
 
     private fun parseResponse(body: String): ChatResponse {
         val root = JSONObject(body)
@@ -149,5 +170,7 @@ class YouTubeChatScraperEngine(
         val JSON_MEDIA_TYPE = "application/json".toMediaType()
         const val INNERTUBE_CHAT_URL = "https://www.youtube.com/youtubei/v1/live_chat/get_live_chat"
         const val RETRY_DELAY_MILLIS = 500L
+        const val MAX_ERROR_BODY_LENGTH = 1000
+        const val LOG_TAG = "YouTubeChatScraper"
     }
 }

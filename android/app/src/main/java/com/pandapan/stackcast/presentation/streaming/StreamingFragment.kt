@@ -47,8 +47,8 @@ import kotlinx.coroutines.launch
  *
  * カメラプレビュー ([com.pedro.library.view.OpenGlView]) の表示、配信状態のオーバーレイ表示、
  * および [StreamingForegroundService] とのバインドを担当する。
- * カメラ・マイクの権限が許可されている場合、画面表示と同時に自動的に配信を開始し、
- * 「配信終了」ボタン押下、または画面破棄時にサービスとの結びつきを解除する
+ * カメラ・マイクの権限が許可されている場合、画面表示と同時にプレビューだけを開始し、
+ * 「配信開始」ボタンでRTMP配信を開始する。「配信終了」ボタン押下、または画面破棄時にサービスとの結びつきを解除する
  * （配信自体はフォアグラウンドサービスにより継続される）。
  */
 class StreamingFragment : Fragment() {
@@ -64,6 +64,8 @@ class StreamingFragment : Fragment() {
     private var isServiceBound = false
     private var liveLlmEngine: MediaPipeLlmInferenceEngine? = null
     private var liveTtsEngine: AndroidTtsEngine? = null
+    private var pendingSession: StreamSession? = null
+    private var pendingSettings: com.pandapan.stackcast.domain.model.AppSettings? = null
 
     /** カメラ・マイクの実行時権限をまとめて要求するためのランチャー。 */
     private val requestPermissionsLauncher = registerForActivityResult(
@@ -83,7 +85,8 @@ class StreamingFragment : Fragment() {
             streamingService = boundService
             viewModel.attachStreamer(boundService.rtmpStreamerPort)
             _binding?.cameraPreviewView?.let { boundService.encoder.attachPreviewView(it) }
-            startStreamingIfNeeded()
+            viewModel.startPreview()
+            loadStreamingSettings()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -104,6 +107,19 @@ class StreamingFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         observeStreamingState()
+
+        binding.btnStartStream.setOnClickListener {
+            val session = pendingSession
+            val settings = pendingSettings
+            if (session == null || settings == null) {
+                Toast.makeText(requireContext(), "配信設定を読み込んでいます。", Toast.LENGTH_SHORT).show()
+            } else {
+                viewModel.startStreaming(session)
+                viewLifecycleOwner.lifecycleScope.launch {
+                    startCommentPipeline(settings)
+                }
+            }
+        }
 
         binding.btnStopStream.setOnClickListener {
             viewModel.stopStreaming()
@@ -153,22 +169,21 @@ class StreamingFragment : Fragment() {
     private fun startServiceAndBind() {
         val context = requireContext().applicationContext
         StreamingForegroundService.start(context)
-        context.bindService(
+        isServiceBound = context.bindService(
             Intent(context, StreamingForegroundService::class.java),
             serviceConnection,
             Context.BIND_AUTO_CREATE
         )
-        isServiceBound = true
     }
 
-    /** 設定画面で保存された配信設定を読み込み、まだ配信していなければ配信を開始する。 */
-    private fun startStreamingIfNeeded() {
-        if (viewModel.state.value != StreamingState.Idle) return
+    /** 設定画面で保存された配信設定を読み込み、明示的な開始操作に備える。 */
+    private fun loadStreamingSettings() {
         viewLifecycleOwner.lifecycleScope.launch {
             val repository = DataStoreSettingsRepository(requireContext().applicationContext.settingsDataStore)
             val settings = repository.observeSettings().first()
             if (settings.rtmpConfig.isValid()) {
-                viewModel.startStreaming(StreamSession.fromRtmpConfig(settings.rtmpConfig))
+                pendingSession = StreamSession.fromRtmpConfig(settings.rtmpConfig)
+                pendingSettings = settings
             } else {
                 Toast.makeText(
                     requireContext(),
@@ -176,7 +191,6 @@ class StreamingFragment : Fragment() {
                     Toast.LENGTH_LONG
                 ).show()
             }
-            startCommentPipeline(settings)
         }
     }
 
@@ -223,6 +237,18 @@ class StreamingFragment : Fragment() {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.state.collect { state ->
                     _binding?.tvStreamingStatus?.text = renderState(state)
+                    _binding?.btnStartStream?.visibility =
+                        if (state is StreamingState.Previewing || state is StreamingState.Error) {
+                            View.VISIBLE
+                        } else {
+                            View.GONE
+                        }
+                    _binding?.btnStopStream?.visibility =
+                        if (state is StreamingState.Streaming || state is StreamingState.Starting) {
+                            View.VISIBLE
+                        } else {
+                            View.GONE
+                        }
                 }
             }
         }
@@ -257,6 +283,7 @@ class StreamingFragment : Fragment() {
     /** [StreamingState] を画面表示用の文字列へ変換する。 */
     private fun renderState(state: StreamingState): String = when (state) {
         StreamingState.Idle -> getString(R.string.streaming_status_idle)
+        StreamingState.Previewing -> getString(R.string.streaming_status_preview)
         StreamingState.Starting -> getString(R.string.streaming_status_starting)
         is StreamingState.Streaming -> getString(R.string.streaming_status_streaming, state.bitrateBps / 1000)
         StreamingState.Stopping -> getString(R.string.streaming_status_stopping)
