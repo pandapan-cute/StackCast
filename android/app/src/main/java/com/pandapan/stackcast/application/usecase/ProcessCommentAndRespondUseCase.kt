@@ -41,9 +41,7 @@ class ProcessCommentAndRespondUseCase(
             .getOrElse { return Result.failure(it) }
         val motions = lipSyncCalculator.calculate(audio)
         audioSink.submit(audio).mapFailure("RTMP音声供給").getOrElse { return Result.failure(it) }
-        ttsPort.speak(response.responseText)
-            .mapFailure("TTS再生")
-            .getOrElse { return Result.failure(it) }
+        // 既定経路ではPCMをRTMPへ直接注入するため、端末スピーカー再生は行わない。
         if (!stackChanPort.isConnected()) {
             return Result.failure(PipelineException("BLEモーション送信", "ｽﾀｯｸﾁｬﾝが接続されていません。"))
         }

@@ -3,6 +3,8 @@ package com.pandapan.stackcast.infrastructure.rtmp
 import android.content.Context
 import com.pandapan.stackcast.domain.model.StreamSession
 import com.pandapan.stackcast.domain.model.StreamerEvent
+import com.pandapan.stackcast.domain.model.PcmAudioData
+import com.pandapan.stackcast.domain.ports.RtmpAudioSinkPort
 import com.pandapan.stackcast.domain.ports.RtmpStreamerPort
 import com.pedro.common.ConnectChecker
 import com.pedro.library.rtmp.RtmpCamera2
@@ -32,7 +34,10 @@ import kotlinx.coroutines.withContext
  */
 class RtmpEncoderEngine(
     private val context: Context
-) : RtmpStreamerPort {
+) : RtmpStreamerPort, RtmpAudioSinkPort {
+
+    /** TTS PCMを配信音声へ渡す内部バッファ。 */
+    private val audioSource = BufferAudioSource(AUDIO_SAMPLE_RATE_HZ, AUDIO_CHANNELS)
 
     private val _events = MutableSharedFlow<StreamerEvent>(extraBufferCapacity = EVENT_BUFFER_CAPACITY)
     override val events: SharedFlow<StreamerEvent> = _events.asSharedFlow()
@@ -73,6 +78,14 @@ class RtmpEncoderEngine(
 
     /** カメラ・マイク・エンコーダ・RTMP送出を統括する RootEncoder のコア実装。 */
     private val rtmpCamera: RtmpCamera2 = RtmpCamera2(context.applicationContext, connectChecker)
+
+    init {
+        // RootEncoderの公開APIでPCMを差し替えられる唯一の接続点を使い、
+        // マイク由来のバイト列をTTSバッファへ置換する。AudioTrack/speakは経由しない。
+        rtmpCamera.setCustomAudioEffect(object : com.pedro.encoder.input.audio.CustomAudioEffect() {
+            override fun process(input: ByteArray): ByteArray = audioSource.read(input.size)
+        })
+    }
 
     override fun isReady(): Boolean = true
 
@@ -130,6 +143,16 @@ class RtmpEncoderEngine(
     }
 
     /**
+     * TTSで生成したPCMを配信音声キューへ追加する。
+     *
+     * @param audio 16-bitモノラルPCM。
+     * @return キュー投入結果。
+     */
+    override suspend fun submit(audio: PcmAudioData): Result<Unit> = withContext(Dispatchers.Default) {
+        runCatching { audioSource.enqueue(audio) }
+    }
+
+    /**
      * UI側で生成した [OpenGlView] をプレビュー描画先として接続する。
      *
      * 配信中に呼び出しても配信は継続されたまま描画先のみ切り替わる（RootEncoderの
@@ -154,6 +177,7 @@ class RtmpEncoderEngine(
     }
 
     override fun release() {
+        audioSource.clear()
         runCatching { if (rtmpCamera.isStreaming) rtmpCamera.stopStream() }
         runCatching { if (rtmpCamera.isOnPreview) rtmpCamera.stopPreview() }
     }
@@ -169,5 +193,7 @@ class RtmpEncoderEngine(
         const val PREVIEW_HEIGHT = 720
         const val PREVIEW_FPS = 30
         const val PREVIEW_BITRATE_BPS = 2_500_000
+        const val AUDIO_SAMPLE_RATE_HZ = 44_100
+        const val AUDIO_CHANNELS = 2
     }
 }

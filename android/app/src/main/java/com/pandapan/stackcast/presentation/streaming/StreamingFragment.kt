@@ -228,7 +228,7 @@ class StreamingFragment : Fragment() {
         val process = ProcessCommentAndRespondUseCase(
             generateAiResponse = GenerateAiResponseUseCase(llm, if (settings.youtubeMockMode) "mock" else "local"),
             ttsPort = tts,
-            audioSink = RecordingRtmpAudioSink(),
+            audioSink = streamingService?.encoder ?: RecordingRtmpAudioSink(),
             stackChanPort = stackChan
         )
         viewModel.startCommentPipeline(chat, process, settings.personaPrompt)

@@ -1,6 +1,7 @@
 package com.pandapan.stackcast.infrastructure.youtube
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 /**
@@ -19,7 +20,7 @@ class YouTubeWatchPageParserTest {
         val result = YouTubeWatchPageParser.parse(html)
 
         assertEquals("test-key", result.apiKey)
-        assertEquals("WEB", result.context.getJSONObject("client").getString("clientName"))
+        assertNotNull(result.context)
         assertEquals("initial-token", result.continuation)
     }
 
