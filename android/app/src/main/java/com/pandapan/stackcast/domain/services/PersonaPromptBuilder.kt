@@ -109,7 +109,7 @@ class PersonaPromptBuilder {
         const val SECTION_HISTORY = "【直前の会話履歴】"
         const val SECTION_LATEST_COMMENT = "【最新コメント】"
         const val INSTRUCTION_FOOTER =
-            "上記のキャラクター設定・語尾ルール・禁止ワードを厳守し、最新コメントに一言で返答してください。"
+            "上記のキャラクター設定・語尾ルール・禁止ワードを厳守し、最新コメントに返答してください。"
 
         /** 語尾ルール適用時に一旦取り除き、後で付け直す句読点の一覧。 */
         val TRAILING_PUNCTUATIONS = listOf("。", "！", "？", "!", "?", ".", "、")

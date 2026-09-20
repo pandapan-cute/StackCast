@@ -21,18 +21,35 @@ import org.json.JSONObject
  *
  * 継続トークンを保持して5秒間隔で取得し、受信済みIDを排除して発行する。
  * API仕様変更時はレスポンス変換だけを差し替えられるよう、ポート境界を維持する。
+ *
+ * @property initialContinuation watch URLがない場合に使う手入力の継続トークン。
+ * @property watchUrl 設定時にytcfgを自動取得するYouTube watch URL。
+ * @property watchPageLoader watchページからInnertube設定を取得するローダー。
+ * @property client HTTP通信クライアント。
+ * @property pollIntervalMillis コメント取得間隔。
+ * @property maxRetries HTTP通信の最大再試行回数。
  */
 class YouTubeChatScraperEngine(
     private val initialContinuation: String,
+    private val watchUrl: String = "",
+    private val watchPageLoader: YouTubeWatchPageLoader = YouTubeWatchPageLoader(),
     private val client: OkHttpClient = OkHttpClient(),
     private val pollIntervalMillis: Long = 5_000L,
     private val maxRetries: Int = 3
 ) : YouTubeChatPort {
     override fun comments(): Flow<LiveComment> = flow {
-        var continuation = initialContinuation
+        val pageConfig = if (watchUrl.isBlank()) {
+            null
+        } else {
+            watchPageLoader.load(watchUrl).getOrThrow()
+        }
+        var continuation = pageConfig?.continuation ?: initialContinuation
+        if (continuation.isBlank()) {
+            throw IOException("継続トークンまたはYouTube Liveのwatch URLを設定してください。")
+        }
         val emittedIds = LinkedHashSet<String>()
         while (true) {
-            val result = requestContinuation(continuation)
+            val result = requestContinuation(continuation, pageConfig)
             result.getOrThrow().let { response ->
                 response.comments.filter { emittedIds.add(it.id) }.forEach { emit(it) }
                 continuation = response.continuation
@@ -41,18 +58,30 @@ class YouTubeChatScraperEngine(
         }
     }.flowOn(Dispatchers.IO)
 
-    private suspend fun requestContinuation(continuation: String): Result<ChatResponse> =
+    private suspend fun requestContinuation(
+        continuation: String,
+        pageConfig: YouTubeWatchPageConfig?
+    ): Result<ChatResponse> =
         withContext(Dispatchers.IO) {
             var lastError: Throwable? = null
             repeat(maxRetries) { attempt ->
                 try {
                     val body = JSONObject()
-                        .put("context", JSONObject().put("client", JSONObject().put("clientName", "WEB")))
+                        .put(
+                            "context",
+                            pageConfig?.context ?: JSONObject().put(
+                                "client",
+                                JSONObject().put("clientName", "WEB")
+                            )
+                        )
                         .put("continuation", continuation)
                         .toString()
                         .toRequestBody(JSON_MEDIA_TYPE)
                     val request = Request.Builder()
-                        .url(INNERTUBE_CHAT_URL)
+                        .url(
+                            if (pageConfig == null) INNERTUBE_CHAT_URL
+                            else "$INNERTUBE_CHAT_URL?key=${pageConfig.apiKey}"
+                        )
                         .post(body)
                         .build()
                     client.newCall(request).execute().use { response ->

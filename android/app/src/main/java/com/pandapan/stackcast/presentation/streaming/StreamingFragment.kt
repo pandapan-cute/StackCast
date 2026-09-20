@@ -209,7 +209,10 @@ class StreamingFragment : Fragment() {
         val chat = if (settings.youtubeMockMode) {
             FakeYouTubeChatScraperEngine()
         } else {
-            YouTubeChatScraperEngine(settings.youtubeContinuation)
+            YouTubeChatScraperEngine(
+                initialContinuation = settings.youtubeContinuation,
+                watchUrl = settings.youtubeWatchUrl
+            )
         }
         val llm = if (settings.youtubeMockMode) {
             MockLlmInferenceEngine()

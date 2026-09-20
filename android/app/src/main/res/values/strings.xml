@@ -41,6 +41,8 @@
     <string name="settings_section_youtube">YouTubeコメント</string>
     <string name="settings_switch_youtube_mock">モックコメントを使用する</string>
     <string name="settings_hint_youtube_continuation">Innertube継続トークン (Liveモード)</string>
+    <string name="settings_hint_youtube_watch_url">YouTube Live watch URL (Liveモード優先)</string>
+    <string name="settings_youtube_help">watch URLを指定するとページから設定を自動取得します。未指定時は継続トークンを使用します。</string>
     <string name="settings_hint_llm_model_url">モデルファイルURL</string>
     <string name="settings_hint_llm_hf_token">HuggingFace アクセストークン</string>
     <string name="settings_download_model">モデルをダウンロード</string>

@@ -12,6 +12,7 @@ package com.pandapan.stackcast.domain.model
  * @property llmModelConfig オンデバイスLLMモデルファイルのダウンロード設定。
  * @property youtubeMockMode YouTubeの代わりにモックコメントを使うかどうか。
  * @property youtubeContinuation Innertubeチャット取得に使う継続トークン。
+ * @property youtubeWatchUrl YouTube Liveのwatch URL。
  */
 data class AppSettings(
     val rtmpConfig: RtmpConfig = RtmpConfig(),
@@ -19,5 +20,6 @@ data class AppSettings(
     val bleConfig: BleConfig = BleConfig(),
     val llmModelConfig: LlmModelConfig = LlmModelConfig(),
     val youtubeMockMode: Boolean = true,
-    val youtubeContinuation: String = ""
+    val youtubeContinuation: String = "",
+    val youtubeWatchUrl: String = ""
 )
