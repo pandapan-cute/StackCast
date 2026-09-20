@@ -1,5 +1,6 @@
 package com.pandapan.stackcast.domain.ports
 
+import com.pandapan.stackcast.domain.model.AvatarExpression
 import com.pandapan.stackcast.domain.model.LipSyncMotion
 import com.pandapan.stackcast.domain.model.StackChanConnectionState
 import kotlinx.coroutines.flow.StateFlow
@@ -33,4 +34,11 @@ interface StackChanPort {
      * @param motion 送信対象の時系列。
      */
     suspend fun sendLipSyncMotion(motion: List<LipSyncMotion>): Result<Unit>
+
+    /**
+     * 表情変更コマンドをパケット化して送信する。
+     *
+     * @param expression 変更先の表情。
+     */
+    suspend fun sendExpression(expression: AvatarExpression): Result<Unit>
 }

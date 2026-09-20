@@ -1,5 +1,6 @@
 package com.pandapan.stackcast.infrastructure.ble
 
+import com.pandapan.stackcast.domain.model.AvatarExpression
 import com.pandapan.stackcast.domain.model.LipSyncMotion
 import com.pandapan.stackcast.domain.model.LipSyncMotionPacketCodec
 import com.pandapan.stackcast.domain.model.StackChanConnectionState
@@ -23,6 +24,9 @@ class FakeStackChanAdapter : StackChanPort {
     /** フェイクが記録した送信パケット。 */
     val sentPackets: MutableList<ByteArray> = mutableListOf()
 
+    /** フェイクが記録した表情送信履歴。 */
+    val sentExpressions: MutableList<AvatarExpression> = mutableListOf()
+
     override fun isConnected(): Boolean = _connectionState.value is StackChanConnectionState.Connected
 
     override suspend fun connect(deviceAddress: String): Result<Unit> {
@@ -43,6 +47,17 @@ class FakeStackChanAdapter : StackChanPort {
             return Result.failure(IllegalStateException("未接続です。"))
         }
         sentPackets += LipSyncMotionPacketCodec.encode(motion)
+        return Result.success(Unit)
+    }
+
+    override suspend fun sendExpression(expression: AvatarExpression): Result<Unit> {
+        if (!isConnected()) {
+            return Result.failure(IllegalStateException("未接続です。"))
+        }
+        sentExpressions += expression
+        // 表情パケット (0xAA, 0x02, expression.id)
+        val packet = byteArrayOf(0xAA.toByte(), 0x02.toByte(), expression.id.toByte())
+        sentPackets += packet
         return Result.success(Unit)
     }
 }

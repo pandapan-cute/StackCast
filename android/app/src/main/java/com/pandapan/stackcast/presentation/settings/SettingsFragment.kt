@@ -18,6 +18,7 @@ import androidx.navigation.fragment.findNavController
 import com.pandapan.stackcast.R
 import com.pandapan.stackcast.databinding.FragmentSettingsBinding
 import com.pandapan.stackcast.domain.model.AppSettings
+import com.pandapan.stackcast.domain.model.AvatarExpression
 import com.pandapan.stackcast.domain.model.BleConfig
 import com.pandapan.stackcast.domain.model.LipOpening
 import com.pandapan.stackcast.domain.model.LipSyncMotion
@@ -27,6 +28,7 @@ import com.pandapan.stackcast.domain.model.PersonaPrompt
 import com.pandapan.stackcast.domain.model.RtmpConfig
 import com.pandapan.stackcast.domain.model.ServoAngle
 import com.pandapan.stackcast.infrastructure.ble.BleStackChanAdapter
+import com.pandapan.stackcast.application.usecase.SendExpressionUseCase
 import com.pandapan.stackcast.application.usecase.SendLipSyncUseCase
 import com.google.android.material.textfield.TextInputEditText
 import java.util.Locale
@@ -53,6 +55,9 @@ class SettingsFragment : Fragment() {
     private val bleAdapter by lazy {
         BleStackChanAdapter(requireContext().applicationContext)
     }
+
+    /** テスト送信ボタンを押すたびに切り替える表情のインデックス。 */
+    private var testExpressionIndex = 0
 
     private val blePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -139,23 +144,36 @@ class SettingsFragment : Fragment() {
         }
 
         binding.btnBleSendTest.setOnClickListener {
+            // テスト送信ごとに表情をサイクル切り替え (HAPPY -> DOUBT -> ANGRY -> SAD -> SLEEPY -> NEUTRAL)
+            val expressions = listOf(
+                AvatarExpression.HAPPY,
+                AvatarExpression.DOUBT,
+                AvatarExpression.ANGRY,
+                AvatarExpression.SAD,
+                AvatarExpression.SLEEPY,
+                AvatarExpression.NEUTRAL
+            )
+            val targetExpression = expressions[testExpressionIndex % expressions.size]
+            testExpressionIndex++
+
             val testMotion = listOf(
                 LipSyncMotion(0L, LipOpening.CLOSED, ServoAngle.fromLipOpening(LipOpening.CLOSED)),
                 LipSyncMotion(120L, LipOpening.OPEN, ServoAngle.fromLipOpening(LipOpening.OPEN)),
                 LipSyncMotion(240L, LipOpening.CLOSED, ServoAngle.fromLipOpening(LipOpening.CLOSED))
             )
             viewLifecycleOwner.lifecycleScope.launch {
-                val result = SendLipSyncUseCase(bleAdapter)(testMotion)
-                if (result.isSuccess) {
-                    Toast.makeText(
-                        requireContext(),
-                        R.string.settings_ble_test_success,
-                        Toast.LENGTH_SHORT
-                    ).show()
+                // 表情の変更と口パクモーションを送信
+                val exprResult = SendExpressionUseCase(bleAdapter)(targetExpression)
+                val motionResult = SendLipSyncUseCase(bleAdapter)(testMotion)
+
+                if (exprResult.isSuccess && motionResult.isSuccess) {
+                    val message = "${getString(R.string.settings_ble_test_success)}: 表情「${targetExpression.displayName}」"
+                    Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
                 } else {
+                    val error = exprResult.exceptionOrNull() ?: motionResult.exceptionOrNull()
                     Toast.makeText(
                         requireContext(),
-                        result.exceptionOrNull()?.message.orEmpty(),
+                        error?.message.orEmpty(),
                         Toast.LENGTH_SHORT
                     ).show()
                 }

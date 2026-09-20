@@ -15,6 +15,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
+import com.pandapan.stackcast.domain.model.AvatarExpression
 import com.pandapan.stackcast.domain.model.LipSyncMotion
 import com.pandapan.stackcast.domain.model.LipSyncMotionPacketCodec
 import com.pandapan.stackcast.domain.model.StackChanConnectionState
@@ -262,6 +263,35 @@ class BleStackChanAdapter(
                     if (!sent) {
                         throw lastError ?: IllegalStateException("BLEパケット送信に失敗しました。")
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * 表情変更コマンドをパケット化してGATTへ送信する。
+     *
+     * @param expression 変更先の表情。
+     * @return 送信成否のResult。
+     */
+    override suspend fun sendExpression(expression: AvatarExpression): Result<Unit> {
+        if (!isConnected() || writeCharacteristic == null) {
+            return Result.failure(IllegalStateException("ｽﾀｯｸﾁｬﾝが接続されていません。"))
+        }
+        val packet = byteArrayOf(0xAA.toByte(), 0x02.toByte(), expression.id.toByte())
+        return runCatching {
+            writeMutex.withLock {
+                var sent = false
+                var lastError: Throwable? = null
+                repeat(MAX_WRITE_RETRIES) {
+                    if (!sent) {
+                        runCatching { writePacket(packet) }
+                            .onSuccess { sent = true }
+                            .onFailure { lastError = it }
+                    }
+                }
+                if (!sent) {
+                    throw lastError ?: IllegalStateException("表情パケット送信に失敗しました。")
                 }
             }
         }
