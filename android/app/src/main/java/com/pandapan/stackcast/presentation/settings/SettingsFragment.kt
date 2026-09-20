@@ -315,6 +315,8 @@ class SettingsFragment : Fragment() {
 
             etLlmModelUrl.setTextIfChanged(settings.llmModelConfig.modelUrl)
             etLlmHfToken.setTextIfChanged(settings.llmModelConfig.huggingFaceAccessToken)
+            switchYoutubeMock.isChecked = settings.youtubeMockMode
+            etYoutubeContinuation.setTextIfChanged(settings.youtubeContinuation)
         }
     }
 
@@ -362,7 +364,9 @@ class SettingsFragment : Fragment() {
             rtmpConfig = rtmpConfig,
             personaPrompt = personaPrompt,
             bleConfig = bleConfig,
-            llmModelConfig = collectLlmModelConfig()
+            llmModelConfig = collectLlmModelConfig(),
+            youtubeMockMode = binding.switchYoutubeMock.isChecked,
+            youtubeContinuation = binding.etYoutubeContinuation.text?.toString().orEmpty()
         )
     }
 

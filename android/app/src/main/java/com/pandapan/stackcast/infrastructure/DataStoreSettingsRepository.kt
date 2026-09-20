@@ -65,6 +65,8 @@ class DataStoreSettingsRepository(
 
             preferences[KEY_LLM_MODEL_URL] = settings.llmModelConfig.modelUrl
             preferences[KEY_LLM_HF_ACCESS_TOKEN] = settings.llmModelConfig.huggingFaceAccessToken
+            preferences[KEY_YOUTUBE_MOCK_MODE] = settings.youtubeMockMode
+            preferences[KEY_YOUTUBE_CONTINUATION] = settings.youtubeContinuation
         }
     }
 
@@ -105,7 +107,9 @@ class DataStoreSettingsRepository(
             rtmpConfig = rtmpConfig,
             personaPrompt = personaPrompt,
             bleConfig = bleConfig,
-            llmModelConfig = llmModelConfig
+            llmModelConfig = llmModelConfig,
+            youtubeMockMode = this[KEY_YOUTUBE_MOCK_MODE] ?: true,
+            youtubeContinuation = this[KEY_YOUTUBE_CONTINUATION] ?: ""
         )
     }
 
@@ -130,5 +134,7 @@ class DataStoreSettingsRepository(
 
         val KEY_LLM_MODEL_URL = stringPreferencesKey("llm_model_url")
         val KEY_LLM_HF_ACCESS_TOKEN = stringPreferencesKey("llm_hf_access_token")
+        val KEY_YOUTUBE_MOCK_MODE = booleanPreferencesKey("youtube_mock_mode")
+        val KEY_YOUTUBE_CONTINUATION = stringPreferencesKey("youtube_continuation")
     }
 }

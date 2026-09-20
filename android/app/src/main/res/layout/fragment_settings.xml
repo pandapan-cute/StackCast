@@ -292,6 +292,35 @@
             android:layout_marginTop="4dp"
             android:text="@string/settings_download_status_idle" />
 
+        <!-- YouTubeコメントセクション -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/settings_section_youtube"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switch_youtube_mock"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings_switch_youtube_mock" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/settings_hint_youtube_continuation">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_youtube_continuation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text" />
+        </com.google.android.material.textfield.TextInputLayout>
+
         <!-- 操作ボタン -->
         <Button
             android:id="@+id/btn_save"

@@ -10,10 +10,14 @@ package com.pandapan.stackcast.domain.model
  * @property personaPrompt AIキャラクターのペルソナ設定。
  * @property bleConfig ｽﾀｯｸﾁｬﾝ BLE 接続設定。
  * @property llmModelConfig オンデバイスLLMモデルファイルのダウンロード設定。
+ * @property youtubeMockMode YouTubeの代わりにモックコメントを使うかどうか。
+ * @property youtubeContinuation Innertubeチャット取得に使う継続トークン。
  */
 data class AppSettings(
     val rtmpConfig: RtmpConfig = RtmpConfig(),
     val personaPrompt: PersonaPrompt = PersonaPrompt(),
     val bleConfig: BleConfig = BleConfig(),
-    val llmModelConfig: LlmModelConfig = LlmModelConfig()
+    val llmModelConfig: LlmModelConfig = LlmModelConfig(),
+    val youtubeMockMode: Boolean = true,
+    val youtubeContinuation: String = ""
 )

@@ -38,6 +38,9 @@
     <string name="settings_ble_test_success">送信テストを完了しました</string>
     <string name="settings_save_success">設定を保存しました</string>
     <string name="settings_section_llm_model">LLMモデルダウンロード</string>
+    <string name="settings_section_youtube">YouTubeコメント</string>
+    <string name="settings_switch_youtube_mock">モックコメントを使用する</string>
+    <string name="settings_hint_youtube_continuation">Innertube継続トークン (Liveモード)</string>
     <string name="settings_hint_llm_model_url">モデルファイルURL</string>
     <string name="settings_hint_llm_hf_token">HuggingFace アクセストークン</string>
     <string name="settings_download_model">モデルをダウンロード</string>
@@ -58,6 +61,13 @@
     <string name="streaming_status_streaming">配信中 (%1$d kbps)</string>
     <string name="streaming_status_stopping">配信終了処理中…</string>
     <string name="streaming_status_error">エラー: %1$s</string>
+    <string name="streaming_pipeline_idle">コメント監視停止</string>
+    <string name="streaming_pipeline_listening">コメント監視中</string>
+    <string name="streaming_pipeline_processing">応答処理中: %1$s</string>
+    <string name="streaming_pipeline_completed">応答: %1$s</string>
+    <string name="streaming_pipeline_error">%1$s</string>
+    <string name="streaming_latest_comment">最新コメント: %1$s</string>
+    <string name="streaming_latest_response">AI応答: %1$s</string>
 
     <!-- 配信結果サマリー画面 -->
     <string name="summary_title">配信結果サマリー</string>

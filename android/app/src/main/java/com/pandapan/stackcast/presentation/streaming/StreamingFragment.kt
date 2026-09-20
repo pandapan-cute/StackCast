@@ -23,9 +23,22 @@ import com.pandapan.stackcast.R
 import com.pandapan.stackcast.databinding.FragmentStreamingBinding
 import com.pandapan.stackcast.domain.model.StreamSession
 import com.pandapan.stackcast.domain.model.StreamingState
+import com.pandapan.stackcast.domain.model.PipelineState
+import com.pandapan.stackcast.domain.ports.StackChanPort
+import com.pandapan.stackcast.application.usecase.GenerateAiResponseUseCase
+import com.pandapan.stackcast.application.usecase.ProcessCommentAndRespondUseCase
 import com.pandapan.stackcast.infrastructure.DataStoreSettingsRepository
+import com.pandapan.stackcast.infrastructure.ble.FakeStackChanAdapter
+import com.pandapan.stackcast.infrastructure.llm.MockLlmInferenceEngine
+import com.pandapan.stackcast.infrastructure.llm.MediaPipeLlmInferenceEngine
+import com.pandapan.stackcast.infrastructure.llm.llmModelFile
+import com.pandapan.stackcast.infrastructure.rtmp.RecordingRtmpAudioSink
 import com.pandapan.stackcast.infrastructure.service.StreamingForegroundService
 import com.pandapan.stackcast.infrastructure.settingsDataStore
+import com.pandapan.stackcast.infrastructure.tts.MockTtsEngine
+import com.pandapan.stackcast.infrastructure.tts.AndroidTtsEngine
+import com.pandapan.stackcast.infrastructure.youtube.FakeYouTubeChatScraperEngine
+import com.pandapan.stackcast.infrastructure.youtube.YouTubeChatScraperEngine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -49,6 +62,8 @@ class StreamingFragment : Fragment() {
 
     private var streamingService: StreamingForegroundService? = null
     private var isServiceBound = false
+    private var liveLlmEngine: MediaPipeLlmInferenceEngine? = null
+    private var liveTtsEngine: AndroidTtsEngine? = null
 
     /** カメラ・マイクの実行時権限をまとめて要求するためのランチャー。 */
     private val requestPermissionsLauncher = registerForActivityResult(
@@ -112,6 +127,8 @@ class StreamingFragment : Fragment() {
             requireContext().unbindService(serviceConnection)
             isServiceBound = false
         }
+        liveLlmEngine?.close()
+        liveTtsEngine?.close()
         // メモリリーク防止のため、Fragment の View 破棄時に binding 参照を解放する。
         _binding = null
     }
@@ -159,7 +176,45 @@ class StreamingFragment : Fragment() {
                     Toast.LENGTH_LONG
                 ).show()
             }
+            startCommentPipeline(settings)
         }
+    }
+
+    /** 設定されたLive/Mockモードでコメント処理パイプラインを開始する。 */
+    private suspend fun startCommentPipeline(settings: com.pandapan.stackcast.domain.model.AppSettings) {
+        val stackChan: StackChanPort = if (settings.youtubeMockMode) {
+            FakeStackChanAdapter().also { it.connect("mock") }
+        } else {
+            com.pandapan.stackcast.infrastructure.ble.BleStackChanAdapter(
+                requireContext(),
+                autoReconnect = settings.bleConfig.autoReconnect
+            ).also {
+                it.connect(settings.bleConfig.deviceAddress)
+            }
+        }
+        val chat = if (settings.youtubeMockMode) {
+            FakeYouTubeChatScraperEngine()
+        } else {
+            YouTubeChatScraperEngine(settings.youtubeContinuation)
+        }
+        val llm = if (settings.youtubeMockMode) {
+            MockLlmInferenceEngine()
+        } else {
+            MediaPipeLlmInferenceEngine(requireContext(), requireContext().llmModelFile().absolutePath)
+                .also { liveLlmEngine = it }
+        }
+        val tts = if (settings.youtubeMockMode) {
+            MockTtsEngine()
+        } else {
+            AndroidTtsEngine(requireContext()).also { liveTtsEngine = it }
+        }
+        val process = ProcessCommentAndRespondUseCase(
+            generateAiResponse = GenerateAiResponseUseCase(llm, if (settings.youtubeMockMode) "mock" else "local"),
+            ttsPort = tts,
+            audioSink = RecordingRtmpAudioSink(),
+            stackChanPort = stackChan
+        )
+        viewModel.startCommentPipeline(chat, process, settings.personaPrompt)
     }
 
     /** [StreamingViewModel.state] を監視し、画面下部のステータス表示へ反映する。 */
@@ -170,6 +225,32 @@ class StreamingFragment : Fragment() {
                     _binding?.tvStreamingStatus?.text = renderState(state)
                 }
             }
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.pipelineState.collect { state ->
+                    renderPipelineState(state)
+                }
+            }
+        }
+    }
+
+    /** コメント処理パイプラインの進行状態をオーバーレイへ反映する。 */
+    private fun renderPipelineState(state: PipelineState) {
+        when (state) {
+            PipelineState.Idle -> binding.tvPipelineStatus.setText(R.string.streaming_pipeline_idle)
+            PipelineState.Listening -> binding.tvPipelineStatus.setText(R.string.streaming_pipeline_listening)
+            is PipelineState.Processing -> binding.tvPipelineStatus.text =
+                getString(R.string.streaming_pipeline_processing, state.comment.text)
+            is PipelineState.Completed -> binding.tvPipelineStatus.setText(R.string.streaming_pipeline_listening)
+            is PipelineState.Error -> binding.tvPipelineStatus.text =
+                getString(R.string.streaming_pipeline_error, "${state.stage}: ${state.reason}")
+        }
+        viewModel.latestComment.value?.let {
+            binding.tvLatestComment.text = getString(R.string.streaming_latest_comment, "${it.author}: ${it.text}")
+        }
+        viewModel.latestResponse.value?.let {
+            binding.tvLatestResponse.text = getString(R.string.streaming_latest_response, it.responseText)
         }
     }
 
