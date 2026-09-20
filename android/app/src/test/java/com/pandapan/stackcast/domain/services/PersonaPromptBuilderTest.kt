@@ -43,11 +43,36 @@ class PersonaPromptBuilderTest {
     }
 
     @Test
+    fun `システムプロンプトが空欄でも英語の既定指示が使われる`() {
+        val blankPersona = persona.copy(systemPrompt = "")
+
+        val prompt = builder.buildPrompt(blankPersona, comment)
+
+        assertTrue(prompt.contains("You are StackCast's live-stream assistant."))
+        assertTrue(prompt.contains("Reply in natural, idiomatic Japanese."))
+    }
+
+    @Test
+    fun `出力言語は日本語に固定される`() {
+        val prompt = builder.buildPrompt(persona, comment)
+
+        assertTrue(prompt.contains("Final answers must be written in natural Japanese."))
+        assertTrue(prompt.contains("Think in English if needed"))
+    }
+
+    @Test
     fun `プロンプトに最新コメントの投稿者と本文が含まれる`() {
         val prompt = builder.buildPrompt(persona, comment)
 
         assertTrue(prompt.contains(comment.author))
         assertTrue(prompt.contains(comment.text))
+    }
+
+    @Test
+    fun `プロンプトに連続反復を避ける応答ルールが含まれる`() {
+        val prompt = builder.buildPrompt(persona, comment)
+
+        assertTrue(prompt.contains("同じ語句、同じ数字、同じ文の連続反復は避け"))
     }
 
     @Test
@@ -99,5 +124,19 @@ class PersonaPromptBuilderTest {
 
         assertEquals("今日は良い天気ですのだ", result)
         assertFalse(result.endsWith("。"))
+    }
+
+    @Test
+    fun `連続する同一語句は1回にまとめられる`() {
+        val result = builder.applyToneEnding("2022、2022、2022 について話す。", persona)
+
+        assertEquals("2022について話すのだ。", result)
+    }
+
+    @Test
+    fun `同じ語句の連続反復が空白や読点を挟んでも抑制される`() {
+        val result = builder.applyToneEnding("私、私、私、今日の話をする。", persona)
+
+        assertEquals("私、今日の話をするのだ。", result)
     }
 }

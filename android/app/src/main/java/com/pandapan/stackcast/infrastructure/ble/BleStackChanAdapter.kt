@@ -11,6 +11,7 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
+import android.util.Log
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -248,6 +249,7 @@ class BleStackChanAdapter(
         if (!isConnected() || writeCharacteristic == null) {
             return Result.failure(IllegalStateException("ｽﾀｯｸﾁｬﾝが接続されていません。"))
         }
+        Log.i(TAG, "sendLipSyncMotion: motions=${motion.size}, packets=${packets.size}, mtu=$negotiatedMtu, writeType=$writeType")
         return runCatching {
             writeMutex.withLock {
                 packets.forEach { packet ->
@@ -279,6 +281,7 @@ class BleStackChanAdapter(
             return Result.failure(IllegalStateException("ｽﾀｯｸﾁｬﾝが接続されていません。"))
         }
         val packet = byteArrayOf(0xAA.toByte(), 0x02.toByte(), expression.id.toByte())
+        Log.i(TAG, "sendExpression: expression=${expression.name}, packetSize=${packet.size}")
         return runCatching {
             writeMutex.withLock {
                 var sent = false
@@ -398,5 +401,6 @@ class BleStackChanAdapter(
     private companion object {
         const val CONNECTION_TIMEOUT_MS = 15_000L
         const val MAX_WRITE_RETRIES = 3
+        const val TAG = "StackCastBle"
     }
 }

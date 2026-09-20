@@ -32,6 +32,7 @@ import com.pandapan.stackcast.infrastructure.ble.FakeStackChanAdapter
 import com.pandapan.stackcast.infrastructure.llm.MockLlmInferenceEngine
 import com.pandapan.stackcast.infrastructure.llm.MediaPipeLlmInferenceEngine
 import com.pandapan.stackcast.infrastructure.llm.llmModelFile
+import com.pandapan.stackcast.infrastructure.logging.AndroidPipelineLogger
 import com.pandapan.stackcast.infrastructure.rtmp.RecordingRtmpAudioSink
 import com.pandapan.stackcast.infrastructure.service.StreamingForegroundService
 import com.pandapan.stackcast.infrastructure.settingsDataStore
@@ -229,7 +230,8 @@ class StreamingFragment : Fragment() {
             generateAiResponse = GenerateAiResponseUseCase(llm, if (settings.youtubeMockMode) "mock" else "local"),
             ttsPort = tts,
             audioSink = streamingService?.encoder ?: RecordingRtmpAudioSink(),
-            stackChanPort = stackChan
+            stackChanPort = stackChan,
+            logger = AndroidPipelineLogger()
         )
         viewModel.startCommentPipeline(chat, process, settings.personaPrompt)
     }

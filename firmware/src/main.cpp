@@ -143,9 +143,21 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
         const uint8_t* data = (const uint8_t*)rxValue.data();
         size_t len = rxValue.length();
 
+        M5_LOGI("RX packet received: len=%u, bytes=%02X %02X %02X %02X %02X %02X %02X %02X",
+            (unsigned)len,
+            len > 0 ? data[0] : 0,
+            len > 1 ? data[1] : 0,
+            len > 2 ? data[2] : 0,
+            len > 3 ? data[3] : 0,
+            len > 4 ? data[4] : 0,
+            len > 5 ? data[5] : 0,
+            len > 6 ? data[6] : 0,
+            len > 7 ? data[7] : 0);
+
         // 1. Androidアプリ (LipSyncMotionPacketCodec) からの 'SC' リップシンクパケット判定
         if (len >= 6 && data[0] == 'S' && data[1] == 'C') {
             uint8_t count = data[5];
+            M5_LOGI("SC lip-sync packet received: len=%u, count=%u", (unsigned)len, count);
             for (uint8_t i = 0; i < count; i++) {
                 size_t offset = 6 + i * 7;
                 if (offset + 7 > len) break;
@@ -158,7 +170,13 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
                 // サーボ角度 (int16_t リトルエンディアン)
                 int16_t angle = (int16_t)(data[offset + 5] | (data[offset + 6] << 8));
                 updateServoAngles(angle, currentPitch);
+                M5_LOGI("SC motion[%u]: lip=%u ratio=%.3f yaw=%d pitch=%d", i, lip, ratio, angle, currentPitch);
             }
+            return;
+        }
+
+        if (len < 6 && data[0] == 'S') {
+            M5_LOGW("Partial SC packet fragment received: len=%u", (unsigned)len);
             return;
         }
 
@@ -182,6 +200,7 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
 
                 // 2. サーボ角度の適用
                 updateServoAngles(packet->yawAngle, packet->pitchAngle);
+                M5_LOGI("PACKET_TYPE_LIP_SYNC_SERVO: lipOpening=%u ratio=%.3f yaw=%d pitch=%d", packet->lipOpening, ratio, packet->yawAngle, packet->pitchAngle);
                 break;
             }
 
@@ -189,6 +208,7 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
                 if (len < sizeof(ExpressionPacket)) return;
                 const auto* packet = (const ExpressionPacket*)data;
                 applyExpression(packet->expression);
+                M5_LOGI("PACKET_TYPE_EXPRESSION: expression=%u", packet->expression);
                 break;
             }
 
@@ -196,6 +216,7 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
                 if (len < sizeof(ServoTorquePacket)) return;
                 const auto* packet = (const ServoTorquePacket*)data;
                 setServoTorque(packet->enable != 0);
+                M5_LOGI("PACKET_TYPE_SERVO_TORQUE: enable=%u", packet->enable);
                 break;
             }
 
