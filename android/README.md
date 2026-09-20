@@ -2,22 +2,22 @@
 
 > **1台のAndroidスマートフォンで完結する、ｽﾀｯｸﾁｬﾝのための24時間AIライブ配信ハブアプリ**
 
-`StackCast` は、YouTube Live配信、コメント取得、オンデバイスAI応答、音声合成、そしてｽﾀｯｸﾁｬﾝ（M5Stack）とのBluetooth連携をスマートフォン1台に集約したオールインワン・ストリーミングアプリケーションです。
+`StackCast` は、YouTube Live 向けの RTMP 配信、オンデバイス LLM のモデル管理、音声合成、そしてｽﾀｯｸﾁｬﾝ（M5Stack）との Bluetooth 連携をスマートフォン1台に集約したオールインワン・ストリーミングアプリケーションです。
 
 ---
 
 ## 🌟 主な特徴
 
 - 🎥 **オールインワンRTMP配信**: スマホのカメラでｽﾀｯｸﾁｬﾝを撮影しつつ、生成されたAI音声を合成してYouTube Liveへ直接ストリーミング。
-- 💬 **クォータフリー・チャット取得**: YouTubeの内部API（Innertube）直接通信により、APIクォータ制限なしでリアルタイムにコメントを収集。
-- 🧠 **完全ローカル/ハイブリッドAI応答**:
-  - オンデバイスLLM（MediaPipe LLM Inference / Gemma 2B / Llama 3）による完全無料・低遅延応答。
-  - クラウドLLM API（OpenAI / Gemini / Claude）へのフォールバックにも対応。
+- 🧠 **オンデバイスLLM応答**:
+  - MediaPipe LLM Inference を使ったローカルモデルの応答生成。
+  - 設定画面から LLM モデルのダウンロードと差し替えができる。
+- 💬 **クォータフリー・チャット取得（Phase 7 で追加予定）**: YouTube の内部 API（Innertube）直接通信により、API クォータ制限なしでリアルタイムにコメントを収集する構成を追加予定。
 - 🗣️ **高品質音声合成 & リップシンク同期**:
   - Android TTS / 小型音声合成エンジンで音声を生成。
   - 発話タイミングと音量（ボリュームエンベロープ）を解析し、ｽﾀｯｸﾁｬﾝの口パク・首振りを完全同期。
 - 📶 **Bluetooth (BLE) 制御**: Wi-Fiの複雑な設定なしで、ｽﾀｯｸﾁｬﾝとシームレスにペアリング＆モーション送信。
-- 🔋 **24時間連続稼働ガード**: 自動再接続、スリープ防止（WakeLock）、サーマル監視、配信枠の定期ローテーション機能を搭載。
+- 🔋 **長時間連続稼働を見据えた構成**: 自動再接続、スリープ防止（WakeLock）、サーマル監視の拡張に備えた設計。
 
 ---
 
@@ -28,14 +28,14 @@ flowchart TD
     subgraph Android["Android端末 (StackCast)"]
         direction TB
         Camera[内蔵カメラ]
-        YTChat[YouTube チャットスクレイパー]
+      YTChat[YouTube チャットスクレイパー]
         LLM[ローカルLLM / API]
         TTS["音声合成 (TTS)"]
         AudioMixer["音声ミキサー & リップシンク解析"]
         Encoder["RTMP エンコーダ (MediaCodec)"]
         BLE_Manager[BLE コントローラー]
 
-        YTChat -->|コメント入力| LLM
+      YTChat -->|コメント入力| LLM
         LLM -->|返答テキスト| TTS
         TTS --> AudioMixer
         AudioMixer -->|音声トラック| Encoder
@@ -76,7 +76,7 @@ flowchart TD
 
 ### 1. ｽﾀｯｸﾁｬﾝ側の準備
 
-1. ｽﾀｯｸﾁｬﾝに `StackCast-Client` ファームウェア（ESP-IDF / Arduino）を書き込みます。
+1. ｽﾀｯｸﾁｬﾝに `firmware/` 配下の `StackChan-CoreS3` ファームウェア（PlatformIO）を書き込みます。
 2. 電源を入れ、BLEアドバタイズ待機状態（LED点滅または画面表示）にします。
 
 ### 2. アプリのセットアップ
@@ -87,10 +87,11 @@ flowchart TD
     - **LLMモデルファイルURL・HuggingFaceアクセストークン**: 詳細は「ローカルLLM設定」項目で後述
     - **RTMP URL**: `rtmp://a.rtmp.youtube.com/live2`
     - **ストリームキー**: YouTube Studioの「ライブ配信を開始」→「配信設定」に表示されるストリームキー
-    - **配信URL**: コメント取得対象のYouTube Live URLまたは動画ID
     - **AIプロンプト設定**: ｽﾀｯｸﾁｬﾝのキャラクター設定（ペルソナ）
+    - **LLMモデルURL / トークン**: モデルをダウンロードするためのURLと認証情報
+    - **BLE接続先**: ｽﾀｯｸﾁｬﾝのデバイス名または MAC アドレス
 4. 「ｽﾀｯｸﾁｬﾝに接続」をタップし、BLEデバイス一覧から該当のｽﾀｯｸﾁｬﾝを選択。
-5. 「配信開始」ボタンを押すと、ストリーミングとコメント監視・自動返答がスタートします。
+5. 「配信開始」ボタンを押すと、ストリーミングと音声・BLE 連携がスタートします。
 
 #### ローカルLLM設定
 
