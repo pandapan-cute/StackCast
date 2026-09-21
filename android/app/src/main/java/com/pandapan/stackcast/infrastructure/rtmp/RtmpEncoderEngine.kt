@@ -4,8 +4,10 @@ import android.content.Context
 import com.pandapan.stackcast.domain.model.StreamSession
 import com.pandapan.stackcast.domain.model.StreamerEvent
 import com.pandapan.stackcast.domain.model.PcmAudioData
+import com.pandapan.stackcast.domain.ports.BgmPlayerPort
 import com.pandapan.stackcast.domain.ports.RtmpAudioSinkPort
 import com.pandapan.stackcast.domain.ports.RtmpStreamerPort
+import com.pandapan.stackcast.infrastructure.audio.AudioTrackBgmPlayer
 import com.pedro.common.ConnectChecker
 import com.pedro.library.rtmp.RtmpCamera2
 import com.pedro.library.view.OpenGlView
@@ -36,8 +38,15 @@ class RtmpEncoderEngine(
     private val context: Context
 ) : RtmpStreamerPort, RtmpAudioSinkPort {
 
-    /** TTS PCMを配信音声へ渡す内部バッファ。 */
-    private val audioSource = BufferAudioSource(AUDIO_SAMPLE_RATE_HZ, AUDIO_CHANNELS)
+    /** BGMプレイヤー。 */
+    val bgmPlayer: BgmPlayerPort = AudioTrackBgmPlayer(context.applicationContext)
+
+    /** TTS PCMおよびBGMを結合して配信音声へ渡す内部バッファ。 */
+    val audioSource = BufferAudioSource(
+        outputSampleRateHz = AUDIO_SAMPLE_RATE_HZ,
+        outputChannels = AUDIO_CHANNELS,
+        bgmPlayer = bgmPlayer
+    )
 
     private val _events = MutableSharedFlow<StreamerEvent>(extraBufferCapacity = EVENT_BUFFER_CAPACITY)
     override val events: SharedFlow<StreamerEvent> = _events.asSharedFlow()
@@ -81,10 +90,22 @@ class RtmpEncoderEngine(
 
     init {
         // RootEncoderの公開APIでPCMを差し替えられる唯一の接続点を使い、
-        // マイク由来のバイト列をTTSバッファへ置換する。AudioTrack/speakは経由しない。
+        // マイク由来のバイト列をTTS+BGM結合バッファへ置換する。AudioTrack/speakは経由しない。
         rtmpCamera.setCustomAudioEffect(object : com.pedro.encoder.input.audio.CustomAudioEffect() {
-            override fun process(input: ByteArray): ByteArray = audioSource.read(input.size)
+            override fun process(pcmBuffer: ByteArray): ByteArray = audioSource.read(pcmBuffer.size)
         })
+    }
+
+    /**
+     * TTSおよびBGMの内部音声音量を設定する。
+     *
+     * @param ttsVolume TTS音量倍率 (0.0〜1.0)。
+     * @param bgmVolume BGM音量倍率 (0.0〜1.0)。
+     */
+    fun setAudioVolumes(ttsVolume: Float, bgmVolume: Float) {
+        audioSource.ttsVolume = ttsVolume
+        audioSource.bgmVolume = bgmVolume
+        bgmPlayer.volume = bgmVolume
     }
 
     override fun isReady(): Boolean = true
@@ -131,11 +152,13 @@ class RtmpEncoderEngine(
             check(prepared) { "映像/音声エンコーダの初期化に失敗しました。端末がサポートしていない可能性があります。" }
 
             rtmpCamera.startStream(session.fullRtmpUrl)
+            bgmPlayer.play()
         }
     }
 
     override suspend fun stopStream(): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
+            bgmPlayer.stop()
             if (rtmpCamera.isStreaming) {
                 rtmpCamera.stopStream()
             }
@@ -178,6 +201,7 @@ class RtmpEncoderEngine(
 
     override fun release() {
         audioSource.clear()
+        bgmPlayer.release()
         runCatching { if (rtmpCamera.isStreaming) rtmpCamera.stopStream() }
         runCatching { if (rtmpCamera.isOnPreview) rtmpCamera.stopPreview() }
     }

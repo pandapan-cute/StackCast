@@ -85,6 +85,7 @@ class SettingsFragment : Fragment() {
         observeUiState()
         observeDownloadState()
         observeBleState()
+        observeAudioTestState()
         setupButtons()
     }
 
@@ -114,8 +115,47 @@ class SettingsFragment : Fragment() {
         }
     }
 
+    /**
+     * [SettingsViewModel.audioTestState] を監視し、音声結合テスト結果をUIへ反映する。
+     */
+    private fun observeAudioTestState() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.audioTestState.collect { state ->
+                    when (state) {
+                        is AudioTestState.Idle -> {
+                            binding.btnTestAudio.isEnabled = true
+                            binding.tvAudioTestStatus.setText(R.string.settings_audio_test_idle)
+                        }
+                        is AudioTestState.Running -> {
+                            binding.btnTestAudio.isEnabled = false
+                            binding.tvAudioTestStatus.setText(R.string.settings_audio_test_running)
+                        }
+                        is AudioTestState.Success -> {
+                            binding.btnTestAudio.isEnabled = true
+                            val msg = getString(R.string.settings_audio_test_success, state.result.summary)
+                            binding.tvAudioTestStatus.text = msg
+                            Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
+                        }
+                        is AudioTestState.Error -> {
+                            binding.btnTestAudio.isEnabled = true
+                            val msg = getString(R.string.settings_audio_test_error, state.message)
+                            binding.tvAudioTestStatus.text = msg
+                            Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /** 保存ボタン・戻るボタン・システムバックの各操作を設定する。 */
     private fun setupButtons() {
+        binding.btnTestAudio.setOnClickListener {
+            val playToSpeaker = binding.switchSpeakerTest.isChecked
+            viewModel.testAudioMix(playToSpeaker = playToSpeaker)
+        }
+
         binding.btnSave.setOnClickListener {
             viewModel.saveSettings(collectFormFields())
             Toast.makeText(

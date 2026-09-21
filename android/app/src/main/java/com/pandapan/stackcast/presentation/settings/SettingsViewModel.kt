@@ -2,9 +2,11 @@ package com.pandapan.stackcast.presentation.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.pandapan.stackcast.application.usecase.AudioMixTestResult
 import com.pandapan.stackcast.application.usecase.DownloadLlmModelUseCase
 import com.pandapan.stackcast.application.usecase.LoadSettingsUseCase
 import com.pandapan.stackcast.application.usecase.SaveSettingsUseCase
+import com.pandapan.stackcast.application.usecase.TestAudioMixUseCase
 import com.pandapan.stackcast.domain.model.AppSettings
 import com.pandapan.stackcast.domain.model.LlmModelConfig
 import com.pandapan.stackcast.domain.model.ModelDownloadState
@@ -15,6 +17,23 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
+ * 音声結合テストの実行状態。
+ */
+sealed interface AudioTestState {
+    /** 待機状態。 */
+    object Idle : AudioTestState
+
+    /** 音声合成・結合処理の実行中。 */
+    object Running : AudioTestState
+
+    /** 結合成功。 */
+    data class Success(val result: AudioMixTestResult) : AudioTestState
+
+    /** 結合失敗。 */
+    data class Error(val message: String) : AudioTestState
+}
+
+/**
  * 設定画面 ([SettingsFragment]) の状態を保持する ViewModel。
  *
  * DataStore に永続化された [AppSettings] を [LoadSettingsUseCase] 経由で監視し、
@@ -22,17 +41,21 @@ import kotlinx.coroutines.launch
  * [SaveSettingsUseCase] に委譲し、具体的な永続化手段には一切依存しない。
  * また、[downloadLlmModel] を通じてLLMモデルファイルのダウンロードを開始し、
  * その進捗状態を [downloadState] として公開する。
+ * さらに、[testAudioMix] を通じてTTSとBGMの内部音声結合テストを実行し、
+ * その結果を [audioTestState] として公開する。
  *
  * @property loadSettingsUseCase 永続化された設定値を読み込むユースケース。
  * @property saveSettingsUseCase 設定値を永続化するユースケース。
  * @property downloadLlmModelUseCase LLMモデルファイルをダウンロードするユースケース。
  * @property modelDestinationPath ダウンロードしたモデルファイルの保存先絶対パス。
+ * @property testAudioMixUseCase 内部音声結合テストを実行するユースケース。
  */
 class SettingsViewModel(
     private val loadSettingsUseCase: LoadSettingsUseCase,
     private val saveSettingsUseCase: SaveSettingsUseCase,
     private val downloadLlmModelUseCase: DownloadLlmModelUseCase,
-    private val modelDestinationPath: String
+    private val modelDestinationPath: String,
+    private val testAudioMixUseCase: TestAudioMixUseCase? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AppSettings())
@@ -44,6 +67,11 @@ class SettingsViewModel(
 
     /** LLMモデルファイルのダウンロード進捗状態。 */
     val downloadState: StateFlow<ModelDownloadState> = _downloadState.asStateFlow()
+
+    private val _audioTestState = MutableStateFlow<AudioTestState>(AudioTestState.Idle)
+
+    /** 内部音声結合テストの実行状態。 */
+    val audioTestState: StateFlow<AudioTestState> = _audioTestState.asStateFlow()
 
     init {
         restoreDownloadState()
@@ -85,6 +113,34 @@ class SettingsViewModel(
             downloadLlmModelUseCase(config, modelDestinationPath).collect { state ->
                 _downloadState.value = state
             }
+        }
+    }
+
+    /**
+     * TTS音声とBGM音声を内部で結合するテストを実行する。
+     *
+     * @param playToSpeaker 外部スピーカーで結合結果を再生して確認するかどうか。
+     * @param testText 合成対象テキスト。
+     */
+    fun testAudioMix(
+        playToSpeaker: Boolean,
+        testText: String = TestAudioMixUseCase.DEFAULT_TEST_TEXT
+    ) {
+        if (_audioTestState.value is AudioTestState.Running) return
+        val useCase = testAudioMixUseCase ?: run {
+            _audioTestState.value = AudioTestState.Error("音声結合テスト用ユースケースが設定されていません。")
+            return
+        }
+
+        _audioTestState.value = AudioTestState.Running
+        viewModelScope.launch {
+            useCase(testText = testText, playToSpeaker = playToSpeaker)
+                .onSuccess { result ->
+                    _audioTestState.value = AudioTestState.Success(result)
+                }
+                .onFailure { error ->
+                    _audioTestState.value = AudioTestState.Error(error.message ?: "音声結合テストに失敗しました。")
+                }
         }
     }
 }

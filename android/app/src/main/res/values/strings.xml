@@ -51,6 +51,15 @@
     <string name="settings_download_status_completed">ダウンロード完了: %1$s</string>
     <string name="settings_download_status_failed">ダウンロード失敗: %1$s</string>
 
+    <!-- 音声結合テストセクション -->
+    <string name="settings_section_audio_test">音声結合テスト (TTS + BGM)</string>
+    <string name="settings_switch_speaker_test">外部スピーカーで確認</string>
+    <string name="settings_btn_test_audio">テスト用音声を再生</string>
+    <string name="settings_audio_test_idle">「テスト用音声を再生」を押すと、TTS応答音声とBGMの内部結合テストを実行します。</string>
+    <string name="settings_audio_test_running">音声合成および内部結合を実行中…</string>
+    <string name="settings_audio_test_success">結合テスト成功: %1$s</string>
+    <string name="settings_audio_test_error">結合テスト失敗: %1$s</string>
+
     <!-- 配信中画面 -->
     <string name="streaming_title">配信中</string>
     <string name="streaming_stop">配信終了</string>

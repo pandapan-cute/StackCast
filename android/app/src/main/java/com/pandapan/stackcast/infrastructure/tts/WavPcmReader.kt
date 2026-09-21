@@ -23,18 +23,40 @@ object WavPcmReader {
      * @throws IOException WAVファイルとして不正な形式であった場合、
      *   または16-bit以外のビット深度であった場合。
      */
-    fun read(wavFile: File): PcmAudioData {
-        val bytes = wavFile.readBytes()
+    fun read(wavFile: File): PcmAudioData = read(wavFile.readBytes(), wavFile.name)
+
+    /**
+     * [java.io.InputStream] からWAVデータを読み込み、[PcmAudioData] へ変換する。
+     *
+     * @param inputStream 読み込み元のストリーム。
+     * @param sourceName エラーメッセージ表示用の音源名。
+     * @return 変換後の16-bit PCM (モノラル) データ。
+     * @throws IOException WAVファイルとして不正な形式であった場合、
+     *   または16-bit以外のビット深度であった場合。
+     */
+    fun read(inputStream: java.io.InputStream, sourceName: String = "stream"): PcmAudioData =
+        read(inputStream.readBytes(), sourceName)
+
+    /**
+     * バイト配列からWAVデータを解析し、[PcmAudioData] へ変換する。
+     *
+     * @param bytes WAVファイルのバイト配列。
+     * @param sourceName エラーメッセージ表示用の音源名。
+     * @return 変換後の16-bit PCM (モノラル) データ。
+     * @throws IOException WAVファイルとして不正な形式であった場合、
+     *   または16-bit以外のビット深度であった場合。
+     */
+    fun read(bytes: ByteArray, sourceName: String = "byte-array"): PcmAudioData {
         val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
 
         val riffId = buffer.readAsciiString(FOUR_CC_LENGTH)
         if (riffId != RIFF_CHUNK_ID) {
-            throw IOException("不正なWAVファイルです (RIFFヘッダが見つかりません): $wavFile")
+            throw IOException("不正なWAVファイルです (RIFFヘッダが見つかりません): $sourceName")
         }
         buffer.int // ファイル全体サイズ (未使用)
         val waveId = buffer.readAsciiString(FOUR_CC_LENGTH)
         if (waveId != WAVE_FORMAT_ID) {
-            throw IOException("不正なWAVファイルです (WAVEフォーマットではありません): $wavFile")
+            throw IOException("不正なWAVファイルです (WAVEフォーマットではありません): $sourceName")
         }
 
         var channelCount = 1
@@ -61,7 +83,7 @@ object WavPcmReader {
 
                 DATA_CHUNK_ID -> {
                     if (bitsPerSample != BITS_PER_SAMPLE_16) {
-                        throw IOException("16-bit以外のPCM ($bitsPerSample bit) には対応していません: $wavFile")
+                        throw IOException("16-bit以外のPCM ($bitsPerSample bit) には対応していません: $sourceName")
                     }
                     pcmSamples = readPcmSamples(buffer, chunkSize, channelCount)
                 }
@@ -79,7 +101,7 @@ object WavPcmReader {
         }
 
         val samples = pcmSamples
-            ?: throw IOException("dataチャンクが見つかりませんでした: $wavFile")
+            ?: throw IOException("dataチャンクが見つかりませんでした: $sourceName")
 
         return PcmAudioData(samples, sampleRateHz)
     }

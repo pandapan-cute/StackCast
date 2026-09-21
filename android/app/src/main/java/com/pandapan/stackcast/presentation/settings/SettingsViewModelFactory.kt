@@ -6,10 +6,17 @@ import androidx.lifecycle.ViewModelProvider
 import com.pandapan.stackcast.application.usecase.DownloadLlmModelUseCase
 import com.pandapan.stackcast.application.usecase.LoadSettingsUseCase
 import com.pandapan.stackcast.application.usecase.SaveSettingsUseCase
+import com.pandapan.stackcast.application.usecase.TestAudioMixUseCase
+import com.pandapan.stackcast.domain.services.AudioMixer
 import com.pandapan.stackcast.infrastructure.DataStoreSettingsRepository
+import com.pandapan.stackcast.infrastructure.audio.AudioTrackBgmPlayer
+import com.pandapan.stackcast.infrastructure.audio.SpeakerAudioPlayer
 import com.pandapan.stackcast.infrastructure.llm.HttpLlmModelDownloader
 import com.pandapan.stackcast.infrastructure.llm.llmModelFile
+import com.pandapan.stackcast.infrastructure.logging.AndroidPipelineLogger
+import com.pandapan.stackcast.infrastructure.rtmp.RecordingRtmpAudioSink
 import com.pandapan.stackcast.infrastructure.settingsDataStore
+import com.pandapan.stackcast.infrastructure.tts.AndroidTtsEngine
 
 /**
  * [SettingsViewModel] を組み立てるための [ViewModelProvider.Factory]。
@@ -32,11 +39,20 @@ class SettingsViewModelFactory(
         val saveSettingsUseCase = SaveSettingsUseCase(repository)
         val downloadLlmModelUseCase = DownloadLlmModelUseCase(HttpLlmModelDownloader())
         val modelDestinationPath = appContext.llmModelFile().absolutePath
+        val testAudioMixUseCase = TestAudioMixUseCase(
+            ttsPort = AndroidTtsEngine(appContext),
+            bgmPlayer = AudioTrackBgmPlayer(appContext),
+            audioMixer = AudioMixer(),
+            audioSink = RecordingRtmpAudioSink(),
+            speakerPlayer = SpeakerAudioPlayer(),
+            logger = AndroidPipelineLogger()
+        )
         return SettingsViewModel(
             loadSettingsUseCase,
             saveSettingsUseCase,
             downloadLlmModelUseCase,
-            modelDestinationPath
+            modelDestinationPath,
+            testAudioMixUseCase
         ) as T
     }
 }
