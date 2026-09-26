@@ -82,6 +82,11 @@
     <string name="streaming_latest_comment">最新コメント: %1$s</string>
     <string name="streaming_latest_response">AI応答: %1$s</string>
 
+    <!-- 字幕テロップ HUD オーバーレイ -->
+    <string name="streaming_overlay_speaker_name">ｽﾀｯｸﾁｬﾝ</string>
+    <string name="streaming_overlay_thinking">💭 考え中…</string>
+    <string name="streaming_overlay_listening">💬 コメント待機中…</string>
+
     <!-- 配信結果サマリー画面 -->
     <string name="summary_title">配信結果サマリー</string>
     <string name="summary_back_to_dashboard">ダッシュボードへ戻る</string>

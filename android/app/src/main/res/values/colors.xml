@@ -2,4 +2,9 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="subtitle_cyan">#FF00E5FF</color>
+    <color name="subtitle_author">#FFA0AEC0</color>
+    <color name="subtitle_comment_text">#FFE2E8F0</color>
+    <color name="subtitle_reply_text">#FFFFFFFF</color>
+    <color name="subtitle_thinking">#FFFFD600</color>
 </resources>

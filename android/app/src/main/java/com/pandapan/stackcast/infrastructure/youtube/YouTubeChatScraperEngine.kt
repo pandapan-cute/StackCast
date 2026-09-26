@@ -38,19 +38,25 @@ class YouTubeChatScraperEngine(
     private val maxRetries: Int = 3
 ) : YouTubeChatPort {
     override fun comments(): Flow<LiveComment> = flow {
+        Log.i(LOG_TAG, "comments() 開始: watchUrl=${watchUrl.isNotBlank()}, continuation=${initialContinuation.isNotBlank()}")
         val pageConfig = if (watchUrl.isBlank()) {
             null
         } else {
+            Log.i(LOG_TAG, "watch URL から ytcfg 取得開始: $watchUrl")
             watchPageLoader.load(watchUrl).getOrThrow()
         }
+        Log.i(LOG_TAG, "初期設定完了: apiKey=${pageConfig?.apiKey?.isNotBlank() == true}, continuation=${pageConfig?.continuation?.isNotBlank() == true}")
         var continuation = pageConfig?.continuation ?: initialContinuation
         if (continuation.isBlank()) {
+            Log.w(LOG_TAG, "continuation が空のため終了")
             throw IOException("継続トークンまたはYouTube Liveのwatch URLを設定してください。")
         }
         val emittedIds = LinkedHashSet<String>()
         while (true) {
+            Log.i(LOG_TAG, "コメント取得ポーリング: continuation=${continuation.take(12)}...")
             val result = requestContinuation(continuation, pageConfig)
             result.getOrThrow().let { response ->
+                Log.i(LOG_TAG, "コメント取得成功: comments=${response.comments.size}")
                 response.comments.filter { emittedIds.add(it.id) }.forEach { emit(it) }
                 continuation = response.continuation
             }
@@ -66,6 +72,7 @@ class YouTubeChatScraperEngine(
             var lastError: Throwable? = null
             repeat(maxRetries) { attempt ->
                 try {
+                    Log.i(LOG_TAG, "リクエスト送信: attempt=${attempt + 1}/$maxRetries")
                     val body = JSONObject()
                         .put(
                             "context",
@@ -87,21 +94,26 @@ class YouTubeChatScraperEngine(
                     client.newCall(request).execute().use { response ->
                         val responseBody = response.body?.string().orEmpty()
                         if (!response.isSuccessful) {
+                            Log.w(LOG_TAG, "HTTP失敗: code=${response.code}")
                             throw IOException(
                                 "YouTubeチャット取得失敗: HTTP ${response.code}: " +
                                     sanitizeErrorBody(responseBody)
                             )
                         }
+                        Log.i(LOG_TAG, "HTTP成功: code=${response.code}")
                         return@withContext Result.success(parseResponse(responseBody))
                     }
                 } catch (error: IOException) {
                     lastError = error
+                    Log.w(LOG_TAG, "取得失敗 attempt=${attempt + 1}: ${error.message}")
                     if (attempt + 1 < maxRetries) delay(RETRY_DELAY_MILLIS * (attempt + 1))
                 } catch (error: org.json.JSONException) {
                     lastError = error
+                    Log.w(LOG_TAG, "JSON解析失敗 attempt=${attempt + 1}: ${error.message}")
                     if (attempt + 1 < maxRetries) delay(RETRY_DELAY_MILLIS * (attempt + 1))
                 }
             }
+            Log.e(LOG_TAG, "コメント取得失敗: ${lastError?.message}")
             Result.failure(lastError ?: IOException("YouTubeチャット取得に失敗しました。"))
         }
 
@@ -148,6 +160,7 @@ class YouTubeChatScraperEngine(
                 }
             }
         }
+        Log.i(LOG_TAG, "parseResponse 完了: continuation=${continuation.take(12)}..., parsed=${parsed.size}")
         return ChatResponse(continuation, parsed)
     }
 

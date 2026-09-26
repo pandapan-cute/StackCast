@@ -1,16 +1,26 @@
 package com.pandapan.stackcast.presentation.streaming
 
+import com.pandapan.stackcast.application.usecase.GenerateAiResponseUseCase
+import com.pandapan.stackcast.application.usecase.ProcessCommentAndRespondUseCase
+import com.pandapan.stackcast.domain.model.LiveComment
+import com.pandapan.stackcast.domain.model.PersonaPrompt
 import com.pandapan.stackcast.domain.model.StreamSession
 import com.pandapan.stackcast.domain.model.StreamingState
+import com.pandapan.stackcast.infrastructure.ble.FakeStackChanAdapter
+import com.pandapan.stackcast.infrastructure.llm.MockLlmInferenceEngine
 import com.pandapan.stackcast.infrastructure.rtmp.MockRtmpEncoderEngine
+import com.pandapan.stackcast.infrastructure.rtmp.RecordingRtmpAudioSink
+import com.pandapan.stackcast.infrastructure.tts.MockTtsEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -112,5 +122,28 @@ class StreamingIntegrationTest {
         val state = viewModel.state.value
         assertTrue(state is StreamingState.Streaming)
         assertEquals(testSession.videoBitrateBps.toLong(), (state as StreamingState.Streaming).bitrateBps)
+    }
+
+    @Test
+    fun `コメントパイプラインが開始されると最新コメントと応答がViewModelに反映される`() = runTest {
+        val viewModel = StreamingViewModel()
+        val stackChan = FakeStackChanAdapter().apply { connect("mock") }
+        val process = ProcessCommentAndRespondUseCase(
+            generateAiResponse = GenerateAiResponseUseCase(MockLlmInferenceEngine(0L), "mock"),
+            ttsPort = MockTtsEngine(millisPerCharacter = 1),
+            audioSink = RecordingRtmpAudioSink(),
+            stackChanPort = stackChan
+        )
+        val testComment = LiveComment("c1", "テスト視聴者", "こんにちは！", 1000L)
+        val mockChatPort = object : com.pandapan.stackcast.domain.ports.YouTubeChatPort {
+            override fun comments() = flowOf(testComment)
+        }
+
+        viewModel.startCommentPipeline(mockChatPort, process, PersonaPrompt())
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(testComment, viewModel.latestComment.value)
+        assertNotNull(viewModel.latestResponse.value)
+        assertTrue(viewModel.latestResponse.value!!.responseText.isNotEmpty())
     }
 }

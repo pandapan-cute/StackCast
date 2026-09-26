@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ｽﾀｯｸﾁｬﾝ返答用の吹き出し風背景 (左端にシアンアクセントラインを持つ半透明ダークカード) -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- メインカード背景 -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#B81E232A" />
+            <corners android:radius="6dp" />
+            <stroke
+                android:width="1dp"
+                android:color="#2600E5FF" />
+        </shape>
+    </item>
+    <!-- 左側アクセントインジケーター -->
+    <item
+        android:width="3dp"
+        android:gravity="start">
+        <shape android:shape="rectangle">
+            <solid android:color="#00E5FF" />
+            <corners
+                android:bottomLeftRadius="6dp"
+                android:topLeftRadius="6dp" />
+        </shape>
+    </item>
+</layer-list>

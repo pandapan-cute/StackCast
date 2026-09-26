@@ -7,6 +7,7 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -63,6 +64,7 @@ class StreamingFragment : Fragment() {
 
     private var streamingService: StreamingForegroundService? = null
     private var isServiceBound = false
+    private var serviceBindingContext: Context? = null
     private var liveLlmEngine: MediaPipeLlmInferenceEngine? = null
     private var liveTtsEngine: AndroidTtsEngine? = null
     private var pendingSession: StreamSession? = null
@@ -81,17 +83,22 @@ class StreamingFragment : Fragment() {
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            Log.i(TAG, "StreamingForegroundService 接続成功")
             val binder = service as? StreamingForegroundService.LocalBinder ?: return
             val boundService = binder.getService()
             streamingService = boundService
             viewModel.attachStreamer(boundService.rtmpStreamerPort)
             _binding?.cameraPreviewView?.let { boundService.encoder.attachPreviewView(it) }
+            _binding?.layoutCommentOverlay?.let { boundService.encoder.attachSubtitleView(it) }
             viewModel.startPreview()
             loadStreamingSettings()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
+            Log.w(TAG, "StreamingForegroundService 切断")
             streamingService = null
+            isServiceBound = false
+            serviceBindingContext = null
         }
     }
 
@@ -140,10 +147,19 @@ class StreamingFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        if (isServiceBound) {
-            requireContext().unbindService(serviceConnection)
-            isServiceBound = false
+        Log.i(TAG, "onDestroyView: subtitle detach / unbind start")
+        streamingService?.encoder?.detachSubtitleView()
+        val boundContext = serviceBindingContext
+        if (isServiceBound && boundContext != null) {
+            runCatching {
+                boundContext.unbindService(serviceConnection)
+            }.onFailure {
+                // 二重解除やサービス側の切断後でも画面破棄時に落ちないようにする。
+                android.util.Log.w("StreamingFragment", "サービス解除に失敗: ${it.message}")
+            }
         }
+        isServiceBound = false
+        serviceBindingContext = null
         liveLlmEngine?.close()
         liveTtsEngine?.close()
         // メモリリーク防止のため、Fragment の View 破棄時に binding 参照を解放する。
@@ -169,12 +185,17 @@ class StreamingFragment : Fragment() {
     /** [StreamingForegroundService] を起動し、バインドする。 */
     private fun startServiceAndBind() {
         val context = requireContext().applicationContext
+        if (isServiceBound) return
+        Log.i(TAG, "StreamingForegroundService 起動/バインド開始")
         StreamingForegroundService.start(context)
-        isServiceBound = context.bindService(
+        val bound = context.bindService(
             Intent(context, StreamingForegroundService::class.java),
             serviceConnection,
             Context.BIND_AUTO_CREATE
         )
+        Log.i(TAG, "bindService 結果=$bound")
+        isServiceBound = bound
+        serviceBindingContext = if (bound) context else null
     }
 
     /** 設定画面で保存された配信設定を読み込み、明示的な開始操作に備える。 */
@@ -197,6 +218,7 @@ class StreamingFragment : Fragment() {
 
     /** 設定されたLive/Mockモードでコメント処理パイプラインを開始する。 */
     private suspend fun startCommentPipeline(settings: com.pandapan.stackcast.domain.model.AppSettings) {
+        Log.i(TAG, "コメントパイプライン開始: mock=${settings.youtubeMockMode}, watchUrl=${settings.youtubeWatchUrl.isNotBlank()}")
         val stackChan: StackChanPort = if (settings.youtubeMockMode) {
             FakeStackChanAdapter().also { it.connect("mock") }
         } else {
@@ -233,6 +255,7 @@ class StreamingFragment : Fragment() {
             stackChanPort = stackChan,
             logger = AndroidPipelineLogger()
         )
+        Log.i(TAG, "コメントパイプラインの依存関係を準備完了: chat=${chat.javaClass.simpleName}, llm=${llm.javaClass.simpleName}, tts=${tts.javaClass.simpleName}")
         viewModel.startCommentPipeline(chat, process, settings.personaPrompt)
     }
 
@@ -283,6 +306,64 @@ class StreamingFragment : Fragment() {
         viewModel.latestResponse.value?.let {
             binding.tvLatestResponse.text = getString(R.string.streaming_latest_response, it.responseText)
         }
+        renderSubtitleOverlay(state)
+    }
+
+    /**
+     * 画面下部の字幕テロップ (HUD オーバーレイ) を更新する。
+     *
+     * 画面上の表示だけでなく、[RtmpEncoderEngine.attachSubtitleView] を介して
+     * 配信映像フレーム（YouTube側）へもリアルタイムに焼き込まれる。
+     *
+     * @param state 現在のコメント処理パイプライン状態。
+     */
+    private fun renderSubtitleOverlay(state: PipelineState) {
+        val currentBinding = _binding ?: return
+        when (state) {
+            PipelineState.Idle -> {
+                currentBinding.tvCommentAuthor.text = ""
+                currentBinding.tvCommentText.setText(R.string.streaming_overlay_listening)
+                currentBinding.tvReplyStatus.visibility = View.GONE
+                currentBinding.tvReplyText.text = ""
+            }
+            is PipelineState.Processing -> {
+                currentBinding.tvCommentAuthor.text = "@${state.comment.author}: "
+                currentBinding.tvCommentText.text = state.comment.text
+                currentBinding.tvReplyStatus.visibility = View.VISIBLE
+                currentBinding.tvReplyStatus.setText(R.string.streaming_overlay_thinking)
+                currentBinding.tvReplyText.text = ""
+            }
+            is PipelineState.Completed -> {
+                currentBinding.tvCommentAuthor.text = "@${state.comment.author}: "
+                currentBinding.tvCommentText.text = state.comment.text
+                currentBinding.tvReplyStatus.visibility = View.GONE
+                currentBinding.tvReplyText.text = state.response.responseText
+            }
+            is PipelineState.Error -> {
+                val comment = state.comment ?: viewModel.latestComment.value
+                if (comment != null) {
+                    currentBinding.tvCommentAuthor.text = "@${comment.author}: "
+                    currentBinding.tvCommentText.text = comment.text
+                }
+                currentBinding.tvReplyStatus.visibility = View.VISIBLE
+                currentBinding.tvReplyStatus.text = "⚠️ ${state.stage}失敗"
+            }
+            PipelineState.Listening -> {
+                val latestComment = viewModel.latestComment.value
+                val latestResponse = viewModel.latestResponse.value
+                currentBinding.tvReplyStatus.visibility = View.GONE
+                if (latestComment != null) {
+                    currentBinding.tvCommentAuthor.text = "@${latestComment.author}: "
+                    currentBinding.tvCommentText.text = latestComment.text
+                    currentBinding.tvReplyText.text = latestResponse?.responseText.orEmpty()
+                } else {
+                    currentBinding.tvCommentAuthor.text = ""
+                    currentBinding.tvCommentText.setText(R.string.streaming_overlay_listening)
+                    currentBinding.tvReplyText.text = ""
+                }
+            }
+        }
+        currentBinding.layoutCommentOverlay.postInvalidate()
     }
 
     /** [StreamingState] を画面表示用の文字列へ変換する。 */
@@ -293,5 +374,9 @@ class StreamingFragment : Fragment() {
         is StreamingState.Streaming -> getString(R.string.streaming_status_streaming, state.bitrateBps / 1000)
         StreamingState.Stopping -> getString(R.string.streaming_status_stopping)
         is StreamingState.Error -> getString(R.string.streaming_status_error, state.reason)
+    }
+
+    private companion object {
+        const val TAG = "StreamingFragment"
     }
 }

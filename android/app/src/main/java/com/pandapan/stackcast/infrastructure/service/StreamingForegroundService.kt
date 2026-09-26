@@ -12,6 +12,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.pandapan.stackcast.MainActivity
 import com.pandapan.stackcast.R
@@ -56,12 +57,14 @@ class StreamingForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.i(TAG, "onCreate")
         createNotificationChannel()
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.i(TAG, "onStartCommand: startId=$startId, flags=$flags")
         startForegroundWithNotification()
         acquireWakeLock()
         // OSにより強制終了された場合もインテント無しで再生成し、配信継続を試みる。
@@ -69,6 +72,7 @@ class StreamingForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        Log.i(TAG, "onDestroy")
         releaseWakeLock()
         encoderEngine?.release()
         encoderEngine = null
@@ -133,6 +137,7 @@ class StreamingForegroundService : Service() {
     }
 
     companion object {
+        private const val TAG = "StreamingForegroundService"
         private const val NOTIFICATION_CHANNEL_ID = "stackcast_streaming_channel"
         private const val NOTIFICATION_ID = 1001
 
@@ -145,6 +150,7 @@ class StreamingForegroundService : Service() {
          * @param context 起動元のコンテキスト。
          */
         fun start(context: Context) {
+            Log.i(TAG, "start request")
             val intent = Intent(context, StreamingForegroundService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -159,6 +165,7 @@ class StreamingForegroundService : Service() {
          * @param context 停止元のコンテキスト。
          */
         fun stop(context: Context) {
+            Log.i(TAG, "stop request")
             context.stopService(Intent(context, StreamingForegroundService::class.java))
         }
     }
