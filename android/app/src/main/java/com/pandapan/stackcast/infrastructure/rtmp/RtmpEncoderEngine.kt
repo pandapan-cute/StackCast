@@ -267,12 +267,22 @@ class RtmpEncoderEngine(
         }
         val filter = ViewFilterRender().apply {
             this.view = view
-            // 配信映像（16:9）の下部に配置
+            val videoSize = rtmpCamera.glInterface.encoderSize
+            val frameWidth = videoSize.x.takeIf { it > 0 } ?: PREVIEW_WIDTH
+            val frameHeight = videoSize.y.takeIf { it > 0 } ?: PREVIEW_HEIGHT
+            val widthPercent = view.width * PERCENT / frameWidth
+            val heightPercent = view.height * PERCENT / frameHeight
+            // 既定値の100%ではView全体が画面いっぱいに拡大されるため、実寸比率を指定する。
+            setScale(widthPercent, heightPercent)
             setPosition(TranslateTo.BOTTOM)
         }
         subtitleFilter = filter
         rtmpCamera.glInterface.setFilter(filter)
-        Log.i(TAG, "字幕フィルタをGLへ登録: view=${view.width}x${view.height}")
+        Log.i(
+            TAG,
+            "字幕フィルタをGLへ登録: view=${view.width}x${view.height}, " +
+                "scale=${filter.scale.x}x${filter.scale.y}, frame=${rtmpCamera.glInterface.encoderSize}"
+        )
     }
 
     /**
@@ -324,5 +334,6 @@ class RtmpEncoderEngine(
         const val PREVIEW_BITRATE_BPS = 2_500_000
         const val AUDIO_SAMPLE_RATE_HZ = 44_100
         const val AUDIO_CHANNELS = 2
+        const val PERCENT = 100f
     }
 }
