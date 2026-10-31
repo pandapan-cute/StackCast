@@ -3,6 +3,7 @@ package com.pandapan.stackcast.infrastructure.rtmp
 import android.content.Context
 import android.util.Log
 import android.view.View
+import androidx.core.view.doOnLayout
 import com.pandapan.stackcast.domain.model.StreamSession
 import com.pandapan.stackcast.domain.model.StreamerEvent
 import com.pandapan.stackcast.domain.model.PcmAudioData
@@ -166,6 +167,18 @@ class RtmpEncoderEngine(
             )
             check(prepared) { "映像/音声エンコーダの初期化に失敗しました。端末がサポートしていない可能性があります。" }
 
+            // prepareVideo が解像度/FPS変更に伴って GL 描画系を作り直す場合があるため、
+            // エンコーダ準備後かつ配信開始前に字幕フィルタを現在の GL に再接続する。
+            withContext(Dispatchers.Main.immediate) {
+                subtitleView?.let { view ->
+                    if (view.width > 0 && view.height > 0) {
+                        installSubtitleFilter(view)
+                    } else {
+                        Log.w(TAG, "字幕Viewのレイアウト未完了のため、配信開始前のフィルタ再接続を見送り")
+                    }
+                }
+            }
+
             rtmpCamera.startStream(session.fullRtmpUrl)
             bgmPlayer.play()
             Log.i(TAG, "startStream 完了: BGM再生開始")
@@ -210,10 +223,14 @@ class RtmpEncoderEngine(
     fun attachPreviewView(openGlView: OpenGlView) {
         Log.i(TAG, "attachPreviewView: ${openGlView.javaClass.simpleName}")
         rtmpCamera.replaceView(openGlView)
+        restoreSubtitleFilterWhenLaidOut()
     }
 
     /** 字幕テロップを配信映像フレームに焼き込むための OpenGL フィルタ。 */
     private var subtitleFilter: ViewFilterRender? = null
+
+    /** 字幕フィルタの再生成時に使う字幕View。 */
+    private var subtitleView: View? = null
 
     /**
      * 字幕テロップの [View] を配信映像フレームへ焼き込むフィルタとして接続する。
@@ -225,17 +242,37 @@ class RtmpEncoderEngine(
      */
     fun attachSubtitleView(view: View) {
         Log.i(TAG, "attachSubtitleView request: ${view.javaClass.simpleName}, id=${view.id}, measured=${view.width}x${view.height}")
-        view.post {
-            Log.i(TAG, "attachSubtitleView apply: measured=${view.width}x${view.height}, shown=${view.isShown}")
-            val filter = ViewFilterRender().apply {
-                this.view = view
-                // 配信映像（16:9）の下部に配置
-                setPosition(TranslateTo.BOTTOM)
+        subtitleView = view
+        restoreSubtitleFilterWhenLaidOut()
+    }
+
+    /** レイアウト完了後に字幕Viewを現在のGL描画系へ登録する。 */
+    private fun restoreSubtitleFilterWhenLaidOut() {
+        val view = subtitleView ?: return
+        view.doOnLayout { laidOutView ->
+            if (subtitleView !== laidOutView) return@doOnLayout
+            if (laidOutView.width <= 0 || laidOutView.height <= 0) {
+                Log.w(TAG, "字幕Viewのサイズが不正のためフィルタを登録できません: ${laidOutView.width}x${laidOutView.height}")
+                return@doOnLayout
             }
-            subtitleFilter = filter
-            rtmpCamera.glInterface.setFilter(filter)
-            Log.i(TAG, "attachSubtitleView complete")
+            installSubtitleFilter(laidOutView)
         }
+    }
+
+    /** 字幕フィルタを作り直し、現在の RootEncoder GL 描画系へ登録する。 */
+    private fun installSubtitleFilter(view: View) {
+        subtitleFilter?.let { previousFilter ->
+            runCatching { rtmpCamera.glInterface.removeFilter(previousFilter) }
+            runCatching { previousFilter.release() }
+        }
+        val filter = ViewFilterRender().apply {
+            this.view = view
+            // 配信映像（16:9）の下部に配置
+            setPosition(TranslateTo.BOTTOM)
+        }
+        subtitleFilter = filter
+        rtmpCamera.glInterface.setFilter(filter)
+        Log.i(TAG, "字幕フィルタをGLへ登録: view=${view.width}x${view.height}")
     }
 
     /**
@@ -244,10 +281,11 @@ class RtmpEncoderEngine(
     fun detachSubtitleView() {
         Log.i(TAG, "detachSubtitleView")
         subtitleFilter?.let {
-            rtmpCamera.glInterface.removeFilter(it)
-            it.release()
+            runCatching { rtmpCamera.glInterface.removeFilter(it) }
+            runCatching { it.release() }
         }
         subtitleFilter = null
+        subtitleView = null
     }
 
     /**
@@ -260,6 +298,7 @@ class RtmpEncoderEngine(
     fun detachPreviewView() {
         Log.i(TAG, "detachPreviewView")
         rtmpCamera.replaceView(context.applicationContext)
+        restoreSubtitleFilterWhenLaidOut()
     }
 
     override fun release() {
